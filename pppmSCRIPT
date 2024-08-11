@@ -1,0 +1,58 @@
+
+_G.StealSwords = false     -- change to true to steal swords
+local plr = game.Players.LocalPlayer
+local pBP = plr.Backpack
+
+local function fruit(targetBackPack,v)
+	pcall(function()
+		for i,v1 in pairs(targetBackPack:GetChildren()) do
+			print("Checking ".. v1.Name )
+			if v1:FindFirstChild("IsFruitPower") then
+				print("STOLING "..v1.Name)
+				v1.Parent = pBP
+			end
+		end
+		for i,v1 in pairs(v.Character:GetChildren()) do
+			print("Checking ".. v1.Name )
+			if v1:FindFirstChild("IsFruitPower") then
+				print("STOLING "..v1.Name)
+				v1.Parent = pBP
+			end
+		end
+	end)
+end
+local function sword(targetBackPack,v)
+	pcall(function()
+		for i,v1 in pairs(targetBackPack:GetChildren()) do
+			print("Checking ".. v1.Name )
+			if v1:FindFirstChild("IsWeapon") then
+				print("STOLING "..v1.Name)
+				v1.Parent = pBP
+			end
+		end
+		for i,v1 in pairs(v.Character:GetChildren()) do
+			print("Checking ".. v1.Name )
+			if v1:FindFirstChild("IsWeapon") then
+				print("STOLING "..v1.Name)
+				v1.Parent = pBP
+			end
+		end
+	end)
+end
+
+local function upd()
+	for i,v in pairs(game.Players:GetChildren()) do
+		if v:IsA("Player") and v ~= plr then
+			local targetBackPack = v.Backpack
+			print(v.Name)
+			fruit(targetBackPack,v)
+			if _G.StealSwords == true then
+				sword(targetBackPack,v)
+			end
+		end
+	end
+end
+while task.wait(3) do
+	print(" INVENTORY UPDATES FOR FRUIT -- BY QWENZY FOR SYSTEM :)")
+	upd()
+end
