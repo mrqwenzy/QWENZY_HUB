@@ -1,5 +1,3 @@
-
-_G.StealSwords = false     -- change to true to steal swords
 local plr = game.Players.LocalPlayer
 local pBP = plr.Backpack
 
