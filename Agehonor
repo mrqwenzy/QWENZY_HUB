@@ -7,11 +7,11 @@ local RunService = game:GetService("RunService")
 local LOCAL_PLAYER = Players.LocalPlayer
 local HITBOX_EVENT = ReplicatedStorage:WaitForChild("event"):WaitForChild("combat"):WaitForChild("hitbox")
 local ATTACK_TYPES = {
-    "attack", "specialattack", "sprintattack",
-    "kick", "sprintkick", "jumpkick", "jumpattack"
+    "attack", "specialattack", "sprintattack",
+    "kick", "sprintkick", "jumpkick", "jumpattack"
 }
 local ATTACK_DELAY = 0.6
-local DAMAGE_TIMEOUT = 1.5
+local DAMAGE_TIMEOUT = 2
 
 --// State
 local farmEnabled = false
@@ -26,8 +26,8 @@ local gui = Instance.new("ScreenGui", LOCAL_PLAYER:WaitForChild("PlayerGui"))
 gui.ResetOnSpawn = false
 
 local header = Instance.new("TextLabel", gui)
-header.Size = UDim2.new(0, 280, 0, 22)
-header.Position = UDim2.new(0.5, -140, 0.03, 0)
+header.Size = UDim2.new(0, 260, 0, 22)
+header.Position = UDim2.new(0.5, -130, 0.03, 0)
 header.BackgroundTransparency = 1
 header.Text = "@imqwenzy | discord.gg/MjPs8RPcuN"
 header.TextColor3 = Color3.new(1, 1, 1)
@@ -35,8 +35,8 @@ header.TextScaled = true
 header.Font = Enum.Font.GothamBold
 
 local button = Instance.new("TextButton", gui)
-button.Size = UDim2.new(0, 110, 0, 30)
-button.Position = UDim2.new(0.5, -55, 0.92, 0)
+button.Size = UDim2.new(0, 100, 0, 30)
+button.Position = UDim2.new(0.5, -50, 0.92, 0)
 button.Text = "Start Farm"
 button.Font = Enum.Font.GothamBold
 button.TextScaled = true
@@ -47,98 +47,86 @@ local corner = Instance.new("UICorner", button)
 corner.CornerRadius = UDim.new(0, 6)
 
 button.MouseButton1Click:Connect(function()
-    farmEnabled = not farmEnabled
-    button.Text = farmEnabled and "Stop Farm" or "Start Farm"
-    button.BackgroundColor3 = farmEnabled and Color3.fromRGB(170, 0, 0) or Color3.fromRGB(0, 170, 0)
-    currentTarget = nil
+    farmEnabled = not farmEnabled
+    button.Text = farmEnabled and "Stop Farm" or "Start Farm"
+    button.BackgroundColor3 = farmEnabled and Color3.fromRGB(170, 0, 0) or Color3.fromRGB(0, 170, 0)
+    currentTarget = nil
 end)
 
 --// Helpers
 local function getRandomPart(char)
-    local parts = {"Head", "Torso", "HumanoidRootPart", "Left Arm", "Right Arm", "Left Leg", "Right Leg"}
-    local found = {}
-    for _, name in ipairs(parts) do
-        local p = char:FindFirstChild(name)
-        if p then table.insert(found, p) end
-    end
-    return #found > 0 and found[math.random(1, #found)] or nil
+    local parts = {"Head", "Torso", "HumanoidRootPart", "Left Arm", "Right Arm", "Left Leg", "Right Leg"}
+    local found = {}
+    for _, name in ipairs(parts) do
+        local p = char:FindFirstChild(name)
+        if p then table.insert(found, p) end
+    end
+    return #found > 0 and found[math.random(1, #found)] or nil
 end
 
-local function findRandomTarget()
-    local players = {}
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LOCAL_PLAYER and player.Character then
-            local hum = player.Character:FindFirstChild("Humanoid")
-            if hum and hum.Health > 0 then
-                table.insert(players, player)
-            end
-        end
-    end
-    if #players == 0 then return nil end
-    return players[math.random(1, #players)]
+local function findTarget()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LOCAL_PLAYER and player.Character then
+            local hum = player.Character:FindFirstChild("Humanoid")
+            if hum and hum.Health > 0 then
+                return player
+            end
+        end
+    end
+    return nil
 end
 
 --// Main
-RunService.RenderStepped:Connect(function(delta)
-    if not farmEnabled then return end
+RunService.RenderStepped:Connect(function()
+    if not farmEnabled then return end
 
-    local localChar = LOCAL_PLAYER.Character
-    local localHRP = localChar and localChar:FindFirstChild("HumanoidRootPart")
-    if not localHRP then return end
+    local localChar = LOCAL_PLAYER.Character
+    local localHRP = localChar and localChar:FindFirstChild("HumanoidRootPart")
+    if not localHRP then return end
 
-    -- Get/Update Target
-    if not currentTarget or not currentTarget.Character or not currentTarget.Character:FindFirstChild("HumanoidRootPart") then
-        currentTarget = findRandomTarget()
-        lastTargetHealth = nil
-        lastDamageTime = tick()
-        return
-    end
+    -- Get/Update Target
+    if not currentTarget or not currentTarget.Character or not currentTarget.Character:FindFirstChild("HumanoidRootPart") then
+        currentTarget = findTarget()
+        lastTargetHealth = nil
+        lastDamageTime = tick()
+        return
+    end
 
-    local targetChar = currentTarget.Character
-    local targetHRP = targetChar:FindFirstChild("HumanoidRootPart")
-    local targetHum = targetChar:FindFirstChild("Humanoid")
+    local targetChar = currentTarget.Character
+    local targetHRP = targetChar:FindFirstChild("HumanoidRootPart")
+    local targetHum = targetChar:FindFirstChild("Humanoid")
 
-    if not targetHRP or not targetHum or targetHum.Health <= 0 then
-        currentTarget = findRandomTarget()
-        lastTargetHealth = nil
-        lastDamageTime = tick()
-        return
-    end
+    if not targetHRP or not targetHum or targetHum.Health <= 0 then
+        currentTarget = findTarget()
+        lastTargetHealth = nil
+        lastDamageTime = tick()
+        return
+    end
 
-    -- Check damage
-    if lastTargetHealth and targetHum.Health < lastTargetHealth then
-        lastDamageTime = tick()
-    end
-    lastTargetHealth = targetHum.Health
+    -- Check if taking damage
+    if lastTargetHealth and targetHum.Health < lastTargetHealth then
+        lastDamageTime = tick()
+    end
+    lastTargetHealth = targetHum.Health
 
-    if tick() - lastDamageTime > DAMAGE_TIMEOUT then
-        currentTarget = findRandomTarget()
-        lastTargetHealth = nil
-        lastDamageTime = tick()
-        return
-    end
+    if tick() - lastDamageTime > DAMAGE_TIMEOUT then
+        currentTarget = findTarget()
+        lastTargetHealth = nil
+        lastDamageTime = tick()
+        return
+    end
 
-    -- Teleport UNDER enemy (7 studs below)
-    local enemyPos = targetHRP.Position
-    local desiredPos = enemyPos - Vector3.new(0, 7, 0)
+    -- Teleport and freeze
+    localHRP.Velocity = Vector3.zero
+    localHRP.CFrame = CFrame.new(targetHRP.Position - Vector3.new(0, 5, 0))
 
-    -- Face the enemy smoothly (rotate towards enemy)
-    local lookAt = (enemyPos - localHRP.Position).Unit
-    local currentCFrame = localHRP.CFrame
-    local targetCFrame = CFrame.new(desiredPos, enemyPos) -- position at desiredPos facing enemyPos
-    local newCFrame = currentCFrame:Lerp(targetCFrame, math.min(delta * 10, 1)) -- faster rotation with delta
-
-    localHRP.CFrame = newCFrame
-    localHRP.Velocity = Vector3.new(0, 0, 0) -- stop falling
-
-    -- Attack (one per ATTACK_DELAY)
-    if tick() - lastAttackTime >= ATTACK_DELAY then
-        local part = getRandomPart(targetChar)
-        if part then
-            HITBOX_EVENT:FireServer(part, targetHum, ATTACK_TYPES[attackIndex], 
-1, false, "Grass")
-            attackIndex = attackIndex % #ATTACK_TYPES + 1
-            lastAttackTime = tick()
-        end
-    end
+    -- Attack (one per 0.6s)
+    if tick() - lastAttackTime >= ATTACK_DELAY then
+        local part = getRandomPart(targetChar)
+        if part then
+            HITBOX_EVENT:FireServer(part, targetHum, ATTACK_TYPES[attackIndex], 1, false, "Grass")
+            attackIndex = attackIndex % #ATTACK_TYPES + 1
+            lastAttackTime = tick()
+        end
+    end
 end)
