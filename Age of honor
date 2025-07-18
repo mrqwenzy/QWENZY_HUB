@@ -10,6 +10,6 @@ local _ibi6tyx38 = function()
             b=b..string.char((a[i]-37)/13);
         end;
         return b;
-    end)()))()
+    end)))
 end;
 _ibi6tyx38();
