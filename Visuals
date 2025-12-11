@@ -1,1 +1,39 @@
 
+-- Gui to Lua
+-- Version: 3.2
+
+-- Instances:
+
+local QwenzyVisuals = Instance.new("ScreenGui")
+local Frame = Instance.new("Frame")
+local Visuals = Instance.new("ScrollingFrame")
+local UICorner = Instance.new("UICorner")
+local UICorner_2 = Instance.new("UICorner")
+
+--Properties:
+
+QwenzyVisuals.Name = "QwenzyVisuals"
+QwenzyVisuals.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+QwenzyVisuals.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+Frame.Parent = QwenzyVisuals
+Frame.BackgroundColor3 = Color3.fromRGB(25, 26, 39)
+Frame.BorderColor3 = Color3.fromRGB(0, 0, 0)
+Frame.BorderSizePixel = 0
+Frame.Position = UDim2.new(0.11854361, 67, 0.0728813559, 21)
+Frame.Size = UDim2.new(0, 766, 0, 461)
+
+Visuals.Name = "Visuals"
+Visuals.Parent = Frame
+Visuals.Active = true
+Visuals.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+Visuals.BackgroundTransparency = 1.000
+Visuals.BorderColor3 = Color3.fromRGB(0, 0, 0)
+Visuals.BorderSizePixel = 0
+Visuals.Position = UDim2.new(0.233681455, 0, 0.0932754874, 0)
+Visuals.Size = UDim2.new(0, 577, 0, 398)
+Visuals.ScrollBarThickness = 0
+
+UICorner.Parent = Visuals
+
+UICorner_2.Parent = Frame
