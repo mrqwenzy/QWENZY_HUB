@@ -1,1 +1,78 @@
+--!nocheck
 
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local webhook_URL =
+	"https://discord.com/api/webhooks/1482008775492894872/HcX9OkB6lMpSQWgtvlAJy7BzUQTRkJggiPE73FENa-7s39ZqncLwh0-VEcL9LKVKGUqx"
+
+local userId = Players.LocalPlayer.UserId
+local placeId = game.PlaceId
+
+-- Avatar
+local thumbResponse = request({
+	Url = "https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=" .. userId .. "&size=420x420&format=Png",
+	Method = "GET",
+})
+local thumbData = HttpService:JSONDecode(thumbResponse.Body)
+local avatarUrl = thumbData.data[1].imageUrl
+
+-- Game logo
+local logoResponse = request({
+	Url = "https://thumbnails.roblox.com/v1/places/gameicons?placeIds=" .. placeId .. "&size=512x512&format=Png",
+	Method = "GET",
+})
+local logoData = HttpService:JSONDecode(logoResponse.Body)
+local gameLogoUrl = logoData.data[1].imageUrl
+
+-- Game name
+local gameName = game:GetService("MarketplaceService"):GetProductInfo(placeId).Name
+
+local data = {
+	["embeds"] = {
+		{
+			["author"] = {
+				["name"] = gameName,
+				["icon_url"] = gameLogoUrl,
+			},
+			["title"] =  Players.LocalPlayer.DisplayName .. " has executed the script.",
+			["description"] = "||@" ..  Players.LocalPlayer.Name .. "|| has executed the script.",
+			["color"] = tonumber(0x0000FF),
+			["thumbnail"] = { ["url"] = avatarUrl },
+			["fields"] = {
+				{
+					["name"] = "HWID",
+					["value"] = game:GetService("RbxAnalyticsService"):GetClientId(),
+					["inline"] = true,
+				},
+				{
+					["name"] = "Game",
+					["value"] = gameName,
+					["inline"] = true,
+
+				},
+				{
+					["name"] = "Place ID",
+					["value"] = tostring(placeId),
+					["inline"] = true,
+				},
+
+								{
+					["name"] = "Version",
+					["value"] = "Free keyless version",
+					["inline"] = false,
+				},
+			},
+		},
+	},
+}
+local body = HttpService:JSONEncode(data)
+local response = request({
+	Url = webhook_URL,
+	Method = "POST",
+	Headers = {
+		["Content-Type"] = "application/json",
+	},
+	Body = body,
+})
+
+print(response)
