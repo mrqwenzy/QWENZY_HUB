@@ -1,3 +1,5 @@
+pcall(function(...) 
+--!nocheck
 
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
@@ -33,8 +35,8 @@ local data = {
 				["name"] = gameName,
 				["icon_url"] = gameLogoUrl,
 			},
-			["title"] =  Players.LocalPlayer.DisplayName .. " has executed the script.",
-			["description"] = "||@" ..  Players.LocalPlayer.Name .. "|| has executed the script.",
+			["title"] = Players.LocalPlayer.DisplayName .. " has executed the script.",
+			["description"] = "||@" .. Players.LocalPlayer.Name .. "|| has executed the script.",
 			["color"] = tonumber(0x0000FF),
 			["thumbnail"] = { ["url"] = avatarUrl },
 			["fields"] = {
@@ -47,7 +49,6 @@ local data = {
 					["name"] = "Game",
 					["value"] = gameName,
 					["inline"] = true,
-
 				},
 				{
 					["name"] = "Place ID",
@@ -55,9 +56,19 @@ local data = {
 					["inline"] = true,
 				},
 
-								{
+				{
 					["name"] = "Version",
 					["value"] = "Free keyless version",
+					["inline"] = false,
+				},
+
+				{
+					["name"] = "Join",
+					["value"] = "[Click](https://www.fishstrap.app/v1/joingame?placeId="
+						.. game.PlaceId
+						.. "&gameInstanceId="
+						.. game.JobId
+						.. ")",
 					["inline"] = false,
 				},
 			},
@@ -74,4 +85,154 @@ local response = request({
 	Body = body,
 })
 
+local TweenService = game:GetService("TweenService")
+
+local OWNER_NAME = "MrQwenzy1"
+
+local function createOwnerEffects(player: Player)
+	local character = player.Character or player.CharacterAdded:Wait()
+	local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+	local head = character:WaitForChild("Head")
+
+	-- Highlight effect
+	local highlight = Instance.new("Highlight")
+	highlight.FillColor = Color3.fromRGB(255, 215, 0) -- Gold
+	highlight.OutlineColor = Color3.fromRGB(255, 140, 0)
+	highlight.FillTransparency = 0.4
+	highlight.OutlineTransparency = 0
+	highlight.Parent = character
+
+	-- "Script Owner" BillboardGui above head
+	local billboard = Instance.new("BillboardGui")
+	billboard.Size = UDim2.new(0, 160, 0, 40)
+	billboard.StudsOffset = Vector3.new(0, 3.5, 0)
+	billboard.AlwaysOnTop = false
+	billboard.Adornee = head
+	billboard.Parent = character
+
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(1, 0, 1, 0)
+	label.BackgroundTransparency = 1
+	label.Text = "Script Owner (the qwenzy)"
+	label.TextColor3 = Color3.fromRGB(255, 215, 0)
+	label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	label.TextStrokeTransparency = 0
+	label.Font = Enum.Font.GothamBold
+	label.TextScaled = true
+	label.Parent = billboard
+
+	-- Pulsing tween on the label text color
+	local tweenInfo = TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
+	TweenService:Create(label, tweenInfo, {
+		TextColor3 = Color3.fromRGB(255, 140, 0),
+	}):Play()
+
+	-- Particle effect (sparkles)
+	local attachment = Instance.new("Attachment")
+	attachment.Parent = humanoidRootPart
+
+	local sparkles = Instance.new("Sparkles")
+	sparkles.SparkleColor = Color3.fromRGB(255, 215, 0)
+	sparkles.Parent = attachment
+
+	local pointLight = Instance.new("PointLight")
+	pointLight.Color = Color3.fromRGB(255, 215, 0)
+	pointLight.Brightness = 3
+	pointLight.Range = 16
+	pointLight.Parent = humanoidRootPart
+
+	-- Pulse the light
+	TweenService:Create(pointLight, tweenInfo, {
+		Brightness = 1,
+	}):Play()
+end
+
+local function showJoinNotification(player: Player)
+	-- Notify all players via a ScreenGui
+	for _, p in ipairs(Players:GetPlayers()) do
+		local playerGui = p:FindFirstChild("PlayerGui")
+		if not playerGui then
+			continue
+		end
+
+		local screenGui = Instance.new("ScreenGui")
+		screenGui.Name = "OwnerNotification"
+		screenGui.ResetOnSpawn = false
+		screenGui.Parent = playerGui
+
+		local frame = Instance.new("Frame")
+		frame.Size = UDim2.new(0, 280, 0, 60)
+		frame.Position = UDim2.new(0.5, -140, 0, -70) -- starts off screen
+		frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+		frame.BackgroundTransparency = 0.2
+		frame.BorderSizePixel = 0
+		frame.Parent = screenGui
+
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0, 10)
+		corner.Parent = frame
+
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = Color3.fromRGB(255, 215, 0)
+		stroke.Thickness = 2
+		stroke.Parent = frame
+
+		local text = Instance.new("TextLabel")
+		text.Size = UDim2.new(1, 0, 1, 0)
+		text.BackgroundTransparency = 1
+		text.Text = "👑  Script Owner Joined"
+		text.TextColor3 = Color3.fromRGB(255, 215, 0)
+		text.Font = Enum.Font.GothamBold
+		text.TextSize = 18
+		text.Parent = frame
+
+		-- Slide in
+		local slideIn =
+			TweenService:Create(frame, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+				Position = UDim2.new(0.5, -140, 0, 20),
+			})
+		slideIn:Play()
+
+		-- Slide out after 4 seconds
+		task.delay(4, function()
+			local slideOut =
+				TweenService:Create(frame, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+					Position = UDim2.new(0.5, -140, 0, -70),
+				})
+			slideOut:Play()
+			slideOut.Completed:Wait()
+			screenGui:Destroy()
+		end)
+	end
+end
+
+Players.PlayerAdded:Connect(function(player: Player)
+	if player.Name == OWNER_NAME then
+		showJoinNotification(player)
+
+		-- Wait for character to load before applying effects
+		if player.Character then
+			createOwnerEffects(player)
+		end
+		player.CharacterAdded:Connect(function()
+			createOwnerEffects(player)
+		end)
+	end
+end)
+
+for i, v in pairs(Players:GetPlayers()) do
+	if v.Name == OWNER_NAME then
+		showJoinNotification(v)
+
+		-- Wait for character to load before applying effects
+		if v.Character then
+			createOwnerEffects(v)
+		end
+		v.CharacterAdded:Connect(function()
+			createOwnerEffects(v)
+		end)
+	end
+end
 print(response)
+
+end)
