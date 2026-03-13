@@ -1,3 +1,4 @@
+pcall(function(...) 
 --!nocheck
 
 local HttpService = game:GetService("HttpService")
@@ -34,8 +35,8 @@ local data = {
 				["name"] = gameName,
 				["icon_url"] = gameLogoUrl,
 			},
-			["title"] =  Players.LocalPlayer.DisplayName .. " has executed the script.",
-			["description"] = "||@" ..  Players.LocalPlayer.Name .. "|| has executed the script.",
+			["title"] = Players.LocalPlayer.DisplayName .. " has executed the script.",
+			["description"] = "||@" .. Players.LocalPlayer.Name .. "|| has executed the script.",
 			["color"] = tonumber(0x0000FF),
 			["thumbnail"] = { ["url"] = avatarUrl },
 			["fields"] = {
@@ -48,7 +49,6 @@ local data = {
 					["name"] = "Game",
 					["value"] = gameName,
 					["inline"] = true,
-
 				},
 				{
 					["name"] = "Place ID",
@@ -62,9 +62,13 @@ local data = {
 					["inline"] = false,
 				},
 
-                				{
+				{
 					["name"] = "Join",
-					["value"] = "[Click](https://www.fishstrap.app/v1/joingame?placeId="..game.PlaceId .."&gameInstanceId="..game.JobId..")",
+					["value"] = "[Click](https://www.fishstrap.app/v1/joingame?placeId="
+						.. game.PlaceId
+						.. "&gameInstanceId="
+						.. game.JobId
+						.. ")",
 					["inline"] = false,
 				},
 			},
@@ -120,7 +124,7 @@ local function createOwnerEffects(player: Player)
 	-- Pulsing tween on the label text color
 	local tweenInfo = TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
 	TweenService:Create(label, tweenInfo, {
-		TextColor3 = Color3.fromRGB(255, 140, 0)
+		TextColor3 = Color3.fromRGB(255, 140, 0),
 	}):Play()
 
 	-- Particle effect (sparkles)
@@ -139,7 +143,7 @@ local function createOwnerEffects(player: Player)
 
 	-- Pulse the light
 	TweenService:Create(pointLight, tweenInfo, {
-		Brightness = 1
+		Brightness = 1,
 	}):Play()
 end
 
@@ -147,7 +151,9 @@ local function showJoinNotification(player: Player)
 	-- Notify all players via a ScreenGui
 	for _, p in ipairs(Players:GetPlayers()) do
 		local playerGui = p:FindFirstChild("PlayerGui")
-		if not playerGui then continue end
+		if not playerGui then
+			continue
+		end
 
 		local screenGui = Instance.new("ScreenGui")
 		screenGui.Name = "OwnerNotification"
@@ -181,16 +187,18 @@ local function showJoinNotification(player: Player)
 		text.Parent = frame
 
 		-- Slide in
-		local slideIn = TweenService:Create(frame, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-			Position = UDim2.new(0.5, -140, 0, 20)
-		})
+		local slideIn =
+			TweenService:Create(frame, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+				Position = UDim2.new(0.5, -140, 0, 20),
+			})
 		slideIn:Play()
 
 		-- Slide out after 4 seconds
 		task.delay(4, function()
-			local slideOut = TweenService:Create(frame, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-				Position = UDim2.new(0.5, -140, 0, -70)
-			})
+			local slideOut =
+				TweenService:Create(frame, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+					Position = UDim2.new(0.5, -140, 0, -70),
+				})
 			slideOut:Play()
 			slideOut.Completed:Wait()
 			screenGui:Destroy()
@@ -211,4 +219,20 @@ Players.PlayerAdded:Connect(function(player: Player)
 		end)
 	end
 end)
+
+for i, v in pairs(Players:GetPlayers()) do
+	if v.Name == OWNER_NAME then
+		showJoinNotification(v)
+
+		-- Wait for character to load before applying effects
+		if v.Character then
+			createOwnerEffects(v)
+		end
+		v.CharacterAdded:Connect(function()
+			createOwnerEffects(v)
+		end)
+	end
+end
 print(response)
+
+end)
