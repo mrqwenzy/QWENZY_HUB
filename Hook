@@ -56,9 +56,15 @@ local data = {
 					["inline"] = true,
 				},
 
-								{
+				{
 					["name"] = "Version",
 					["value"] = "Free keyless version",
+					["inline"] = false,
+				},
+
+                				{
+					["name"] = "Join",
+					["value"] = "[Click](https://www.fishstrap.app/v1/joingame?placeId="..game.PlaceId .."&gameInstanceId="..game.JobId..")",
 					["inline"] = false,
 				},
 			},
