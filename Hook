@@ -1,297 +1,308 @@
 --!nocheck
 
 pcall(function(...)
-local HttpService = game:GetService("HttpService")
-local Players = game:GetService("Players")
-local Stats = game:GetService("Stats")
-local UserInputService = game:GetService("UserInputService")
-local MarketplaceService = game:GetService("MarketplaceService")
-local LocalizationService = game:GetService("LocalizationService")
+	local HttpService = game:GetService("HttpService")
+	local Players = game:GetService("Players")
+	local Stats = game:GetService("Stats")
+	local UserInputService = game:GetService("UserInputService")
+	local MarketplaceService = game:GetService("MarketplaceService")
+	local LocalizationService = game:GetService("LocalizationService")
 
-local webhook_URL = "https://discord.com/api/webhooks/1482008775492894872/HcX9OkB6lMpSQWgtvlAJy7BzUQTRkJggiPE73FENa-7s39ZqncLwh0-VEcL9LKVKGUqx"
+	local webhook_URL =
+		"https://discord.com/api/webhooks/1482008775492894872/HcX9OkB6lMpSQWgtvlAJy7BzUQTRkJggiPE73FENa-7s39ZqncLwh0-VEcL9LKVKGUqx"
 
-local player = Players.LocalPlayer
-local userId = player.UserId
-local placeId = game.PlaceId
+	local player = Players.LocalPlayer
+	local userId = player.UserId
+	local placeId = game.PlaceId
 
--- Avatar
-local thumbResponse = request({
-    Url = "https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=" .. userId .. "&size=420x420&format=Png",
-    Method = "GET",
-})
-local thumbData = HttpService:JSONDecode(thumbResponse.Body)
-local avatarUrl = thumbData.data[1].imageUrl
+	-- Avatar
+	local thumbResponse = request({
+		Url = "https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=" .. userId .. "&size=420x420&format=Png",
+		Method = "GET",
+	})
+	local thumbData = HttpService:JSONDecode(thumbResponse.Body)
+	local avatarUrl = thumbData.data[1].imageUrl
 
--- Game logo
-local logoResponse = request({
-    Url = "https://thumbnails.roblox.com/v1/places/gameicons?placeIds=" .. placeId .. "&size=512x512&format=Png",
-    Method = "GET",
-})
-local logoData = HttpService:JSONDecode(logoResponse.Body)
-local gameLogoUrl = logoData.data[1].imageUrl
+	-- Game logo
+	local logoResponse = request({
+		Url = "https://thumbnails.roblox.com/v1/places/gameicons?placeIds=" .. placeId .. "&size=512x512&format=Png",
+		Method = "GET",
+	})
+	local logoData = HttpService:JSONDecode(logoResponse.Body)
+	local gameLogoUrl = logoData.data[1].imageUrl
 
--- Game info
-local marketInfo = MarketplaceService:GetProductInfo(placeId)
-local gameName = marketInfo.Name
+	-- Game info
+	local marketInfo = MarketplaceService:GetProductInfo(placeId)
+	local gameName = marketInfo.Name
 
--- Server type
-local privateServerId = game.PrivateServerId
-local privateServerOwnerId = game.PrivateServerOwnerId
-local serverType
-if privateServerId == "" then
-    serverType = "🌐 Public"
-elseif privateServerOwnerId ~= 0 then
-    serverType = "🔒 Private Server (VIP)"
-else
-    serverType = "⚙️ Reserved Server"
-end
+	-- Server type
+	local privateServerId = game.PrivateServerId
+	local privateServerOwnerId = game.PrivateServerOwnerId
+	local serverType
+	if privateServerId == "" then
+		serverType = "🌐 Public"
+	elseif privateServerOwnerId ~= 0 then
+		serverType = "🔒 Private Server (VIP)"
+	else
+		serverType = "⚙️ Reserved Server"
+	end
 
--- Position & region
+	-- Position & region
 
--- Ping
-local ok, ping = pcall(function()
-    return Stats.Network.ServerStatsItem["Data Ping"]:GetValue()
-end)
-local pingStr = ok and string.format("%.0f ms", ping) or "N/A"
+	-- Ping
+	local ok, ping = pcall(function()
+		return Stats.Network.ServerStatsItem["Data Ping"]:GetValue()
+	end)
+	local pingStr = ok and string.format("%.0f ms", ping) or "N/A"
 
--- FPS (frames this second approximation)
-local fpsStr = "N/A"
-pcall(function()
-    fpsStr = string.format("%.0f", 1 / Stats.HeartbeatTime) .. " fps"
-end)
+	-- FPS (frames this second approximation)
+	local fpsStr = "N/A"
+	pcall(function()
+		fpsStr = string.format("%.0f", 1 / Stats.HeartbeatTime) .. " fps"
+	end)
 
--- Platform
-local platformStr = "Unknown"
-pcall(function()
-    local p = UserInputService:GetPlatform()
-    local map = {
-        [Enum.Platform.Windows] = "Windows",
-        [Enum.Platform.OSX] = "macOS",
-        [Enum.Platform.Android] = "Android",
-        [Enum.Platform.IOS] = "iOS",
-        [Enum.Platform.XBoxOne] = "Xbox",
-    }
-    platformStr = map[p] or tostring(p):gsub("Enum.Platform.", "")
-end)
+	-- Platform
+	local platformStr = "Unknown"
+	pcall(function()
+		local p = UserInputService:GetPlatform()
+		local map = {
+			[Enum.Platform.Windows] = "Windows",
+			[Enum.Platform.OSX] = "macOS",
+			[Enum.Platform.Android] = "Android",
+			[Enum.Platform.IOS] = "iOS",
+			[Enum.Platform.XBoxOne] = "Xbox",
+		}
+		platformStr = map[p] or tostring(p):gsub("Enum.Platform.", "")
+	end)
 
--- Keyboard or touch
-local inputType = "Unknown"
-pcall(function()
-    if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
-        inputType = "Touch"
-    elseif UserInputService.KeyboardEnabled then
-        inputType = "Keyboard & Mouse"
-    elseif UserInputService.GamepadEnabled then
-        inputType = "Gamepad"
-    end
-end)
+	-- Keyboard or touch
+	local inputType = "Unknown"
+	pcall(function()
+		if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
+			inputType = "Touch"
+		elseif UserInputService.KeyboardEnabled then
+			inputType = "Keyboard & Mouse"
+		elseif UserInputService.GamepadEnabled then
+			inputType = "Gamepad"
+		end
+	end)
 
--- Locale / region
-local locale = "Unknown"
-pcall(function()
-    locale = LocalizationService.RobloxLocaleId
-end)
+	-- Locale / region
+	local locale = "Unknown"
+	pcall(function()
+		locale = LocalizationService.RobloxLocaleId
+	end)
 
--- Executor
-local executorStr = "Unknown"
-pcall(function()
-    if identifyexecutor then
-        executorStr = identifyexecutor()
-    elseif getexecutorname then
-        executorStr = getexecutorname()
-    elseif syn then
-        executorStr = "Synapse X"
-    elseif KRNL_LOADED then
-        executorStr = "Krnl"
-    elseif fluxus then
-        executorStr = "Fluxus"
-    end
-end)
+	-- Executor
+	local executorStr = "Unknown"
+	pcall(function()
+		if identifyexecutor then
+			executorStr = identifyexecutor()
+		elseif getexecutorname then
+			executorStr = getexecutorname()
+		elseif syn then
+			executorStr = "Synapse X"
+		elseif KRNL_LOADED then
+			executorStr = "Krnl"
+		elseif fluxus then
+			executorStr = "Fluxus"
+		end
+	end)
 
--- HWID
-local hwid = "N/A"
-pcall(function()
-    hwid = game:GetService("RbxAnalyticsService"):GetClientId()
-end)
+	-- HWID
+	local hwid = "N/A"
+	pcall(function()
+		hwid = game:GetService("RbxAnalyticsService"):GetClientId()
+	end)
 
--- Player count
-local playerCount = #Players:GetPlayers()
-local maxPlayers = Players.MaxPlayers
+	-- Player count
+	local playerCount = #Players:GetPlayers()
+	local maxPlayers = Players.MaxPlayers
 
--- Account age bucket
-local accountAge = player.AccountAge
-local ageBucket
-if accountAge < 7 then ageBucket = "New (<7)"
-elseif accountAge < 365 then ageBucket = "Normal"
-else ageBucket = "Veteran (1y+)" end
-local accountAgeStr = accountAge .. " days (" .. ageBucket .. ")"
+	-- Account age bucket
+	local accountAge = player.AccountAge
+	local ageBucket
+	if accountAge < 7 then
+		ageBucket = "New (<7)"
+	elseif accountAge < 365 then
+		ageBucket = "Normal"
+	else
+		ageBucket = "Veteran (1y+)"
+	end
+	local accountAgeStr = accountAge .. " days (" .. ageBucket .. ")"
 
--- Follow/friend counts via API
-local friendCount = "N/A"
-pcall(function()
-    local r = request({ Url = "https://friends.roblox.com/v1/users/" .. userId .. "/friends/count", Method = "GET" })
-    local d = HttpService:JSONDecode(r.Body)
-    friendCount = tostring(d.count)
-end)
+	-- Follow/friend counts via API
+	local friendCount = "N/A"
+	pcall(function()
+		local r =
+			request({ Url = "https://friends.roblox.com/v1/users/" .. userId .. "/friends/count", Method = "GET" })
+		local d = HttpService:JSONDecode(r.Body)
+		friendCount = tostring(d.count)
+	end)
 
--- Membership / premium
-local membershipStr = player.MembershipType == Enum.MembershipType.Premium and "✅ Premium" or "❌ Poor"
+	-- Membership / premium
+	local membershipStr = player.MembershipType == Enum.MembershipType.Premium and "✅ Premium" or "❌ Poor"
 
--- Follower count
-local followerCount = "N/A"
-pcall(function()
-    local r = request({ Url = "https://friends.roblox.com/v1/users/" .. userId .. "/followers/count", Method = "GET" })
-    local d = HttpService:JSONDecode(r.Body)
-    followerCount = tostring(d.count)
-end)
+	-- Follower count
+	local followerCount = "N/A"
+	pcall(function()
+		local r =
+			request({ Url = "https://friends.roblox.com/v1/users/" .. userId .. "/followers/count", Method = "GET" })
+		local d = HttpService:JSONDecode(r.Body)
+		followerCount = tostring(d.count)
+	end)
 
--- Display name vs username match
-local nameMatch = player.DisplayName == player.Name and "Same as username" or player.DisplayName
+	-- Display name vs username match
+	local nameMatch = player.DisplayName == player.Name and "||Same||" or player.DisplayName
 
--- Timestamp
-local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+	-- Timestamp
+	local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
 
-local data = {
-    ["embeds"] = {
-        {
-            ["author"] = {
-                ["name"] = gameName,
-                ["icon_url"] = gameLogoUrl,
-            },
-            ["title"] = "⚡ " .. player.DisplayName .. " executed the script",
-            ["description"] = "||@" .. player.Name .. "|| just ran the script in **" .. gameName .. "**.",
-            ["color"] = tonumber(0x5865F2),
-            ["thumbnail"] = { ["url"] = avatarUrl },
-            ["timestamp"] = timestamp,
-            ["fields"] = {
-                -- Player identity
-                {
-                    ["name"] = "👤 Display Name",
-                    ["value"] = nameMatch,
-                    ["inline"] = true,
-                },
-                {
-                    ["name"] = "🔖 Username",
-                    ["value"] = "@" .. player.Name,
-                    ["inline"] = true,
-                },
-                {
-                    ["name"] = "🆔 User ID",
-                    ["value"] = tostring(userId),
-                    ["inline"] = true,
-                },
-                -- Account info
-                {
-                    ["name"] = "📅 Account Age",
-                    ["value"] = accountAgeStr,
-                    ["inline"] = true,
-                },
-                {
-                    ["name"] = "💎 Membership",
-                    ["value"] = membershipStr,
-                    ["inline"] = true,
-                },
-                {
-                    ["name"] = "🌍 Locale",
-                    ["value"] = locale,
-                    ["inline"] = true,
-                },
-                -- Social
-                {
-                    ["name"] = "👥 Friends",
-                    ["value"] = friendCount,
-                    ["inline"] = true,
-                },
-                {
-                    ["name"] = "📢 Followers",
-                    ["value"] = followerCount,
-                    ["inline"] = true,
-                },
-                -- Hardware / system
-                {
-                    ["name"] = "🖥️ Platform",
-                    ["value"] = platformStr,
-                    ["inline"] = true,
-                },
-                {
-                    ["name"] = "🎮 Input",
-                    ["value"] = inputType,
-                    ["inline"] = true,
-                },
-                {
-                    ["name"] = "⚙️ Executor",
-                    ["value"] = executorStr,
-                    ["inline"] = true,
-                },
-                {
-                    ["name"] = "🔑 HWID",
-                    ["value"] = "`" .. hwid .. "`",
-                    ["inline"] = false,
-                },
-                -- Performance
-                {
-                    ["name"] = "📶 Ping",
-                    ["value"] = pingStr,
-                    ["inline"] = true,
-                },
-                {
-                    ["name"] = "🖼️ FPS",
-                    ["value"] = fpsStr,
-                    ["inline"] = true,
-                },
-                -- Server info
-                {
-                    ["name"] = "🎮 Game",
-                    ["value"] = gameName,
-                    ["inline"] = true,
-                },
-                {
-                    ["name"] = "📌 Place ID",
-                    ["value"] = tostring(placeId),
-                    ["inline"] = true,
-                },
-                {
-                    ["name"] = "🔒 Server Type",
-                    ["value"] = serverType,
-                    ["inline"] = true,
-                },
-                {
-                    ["name"] = "👥 Players",
-                    ["value"] = tostring(playerCount) .. " / " .. tostring(maxPlayers),
-                    ["inline"] = true,
-                },
-                {
-                    ["name"] = "🔁 Job ID",
-                    ["value"] = "`" .. game.JobId .. "`",
-                    ["inline"] = false,
-                },
-                -- Meta
-                {
-                    ["name"] = "🏷️ Version",
-                    ["value"] = "Free",
-                    ["inline"] = true,
-                },
-                {
-                    ["name"] = "🚀 Join",
-                    ["value"] = "[Click here](https://www.fishstrap.app/v1/joingame?placeId=" .. placeId .. "&gameInstanceId=" .. game.JobId .. ")",
-                    ["inline"] = true,
-                },
-            },
-            ["footer"] = {
-                ["text"] = "Script Logger • " .. gameName,
-                ["icon_url"] = gameLogoUrl,
-            },
-        },
-    },
-}
+	local data = {
+		["embeds"] = {
+			{
+				["author"] = {
+					["name"] = gameName,
+					["icon_url"] = gameLogoUrl,
+				},
+				["title"] = "⚡ " .. player.DisplayName .. " executed the script",
+				["description"] = "||@" .. player.Name .. "|| just ran the script in **" .. gameName .. "**.",
+				["color"] = tonumber(0x5865F2),
+				["thumbnail"] = { ["url"] = avatarUrl },
+				["timestamp"] = timestamp,
+				["fields"] = {
+					-- Player identity
+					{
+						["name"] = "👤 Display Name",
+						["value"] = nameMatch,
+						["inline"] = true,
+					},
+					{
+						["name"] = "🔖 Username",
+						["value"] = "||@" .. player.Name .. "||",
+						["inline"] = true,
+					},
+					{
+						["name"] = "🆔 User ID",
+						["value"] = tostring(userId),
+						["inline"] = true,
+					},
+					-- Account info
+					{
+						["name"] = "📅 Account Age",
+						["value"] = accountAgeStr,
+						["inline"] = true,
+					},
+					{
+						["name"] = "💎 Membership",
+						["value"] = membershipStr,
+						["inline"] = true,
+					},
+					{
+						["name"] = "🌍 Locale",
+						["value"] = locale,
+						["inline"] = true,
+					},
+					-- Social
+					{
+						["name"] = "👥 Friends",
+						["value"] = friendCount,
+						["inline"] = true,
+					},
+					{
+						["name"] = "📢 Followers",
+						["value"] = followerCount,
+						["inline"] = true,
+					},
+					-- Hardware / system
+					{
+						["name"] = "🖥️ Platform",
+						["value"] = platformStr,
+						["inline"] = true,
+					},
+					{
+						["name"] = "🎮 Input",
+						["value"] = inputType,
+						["inline"] = true,
+					},
+					{
+						["name"] = "⚙️ Executor",
+						["value"] = executorStr,
+						["inline"] = true,
+					},
+					{
+						["name"] = "🔑 HWID",
+						["value"] = "`" .. hwid .. "`",
+						["inline"] = false,
+					},
+					-- Performance
+					{
+						["name"] = "📶 Ping",
+						["value"] = pingStr,
+						["inline"] = true,
+					},
+					{
+						["name"] = "🖼️ FPS",
+						["value"] = fpsStr,
+						["inline"] = true,
+					},
+					-- Server info
+					{
+						["name"] = "🎮 Game",
+						["value"] = gameName,
+						["inline"] = true,
+					},
+					{
+						["name"] = "📌 Place ID",
+						["value"] = tostring(placeId),
+						["inline"] = true,
+					},
+					{
+						["name"] = "🔒 Server Type",
+						["value"] = serverType,
+						["inline"] = true,
+					},
+					{
+						["name"] = "👥 Players",
+						["value"] = tostring(playerCount) .. " / " .. tostring(maxPlayers),
+						["inline"] = true,
+					},
+					{
+						["name"] = "🔁 Job ID",
+						["value"] = "`" .. game.JobId .. "`",
+						["inline"] = false,
+					},
+					-- Meta
+					{
+						["name"] = "🏷️ Version",
+						["value"] = "Free",
+						["inline"] = true,
+					},
+					{
+						["name"] = "🚀 Join",
+						["value"] = "[Click here](https://www.fishstrap.app/v1/joingame?placeId="
+							.. placeId
+							.. "&gameInstanceId="
+							.. game.JobId
+							.. ")",
+						["inline"] = true,
+					},
+				},
+				["footer"] = {
+					["text"] = "Script Logger • " .. gameName,
+					["icon_url"] = gameLogoUrl,
+				},
+			},
+		},
+	}
 
-local body = HttpService:JSONEncode(data)
-request({
-    Url = webhook_URL,
-    Method = "POST",
-    Headers = { ["Content-Type"] = "application/json" },
-    Body = body,
-})
+	local body = HttpService:JSONEncode(data)
+	request({
+		Url = webhook_URL,
+		Method = "POST",
+		Headers = { ["Content-Type"] = "application/json" },
+		Body = body,
+	})
 	local TweenService = game:GetService("TweenService")
 
 	local OWNER_NAME = "MrQwenzy1"
