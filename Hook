@@ -1,208 +1,334 @@
 --!nocheck
 
 pcall(function(...)
-local HttpService = game:GetService("HttpService")
-local Players = game:GetService("Players")
-local Stats = game:GetService("Stats")
-local UserInputService = game:GetService("UserInputService")
-local MarketplaceService = game:GetService("MarketplaceService")
-local LocalizationService = game:GetService("LocalizationService")
-local PolicyService = game:GetService("PolicyService")
+	local HttpService = game:GetService("HttpService")
+	local Players = game:GetService("Players")
+	local Stats = game:GetService("Stats")
+	local UserInputService = game:GetService("UserInputService")
+	local MarketplaceService = game:GetService("MarketplaceService")
+	local LocalizationService = game:GetService("LocalizationService")
+	local PolicyService = game:GetService("PolicyService")
 
-local webhook_URL = "https://discord.com/api/webhooks/1482008775492894872/HcX9OkB6lMpSQWgtvlAJy7BzUQTRkJggiPE73FENa-7s39ZqncLwh0-VEcL9LKVKGUqx"
+	local webhook_URL =
+		"https://discord.com/api/webhooks/1482008775492894872/HcX9OkB6lMpSQWgtvlAJy7BzUQTRkJggiPE73FENa-7s39ZqncLwh0-VEcL9LKVKGUqx"
 
-local reqFunc = request or (syn and syn.request) or http_request
-local player = Players.LocalPlayer
-local userId = player.UserId
-local placeId = game.PlaceId
+	local reqFunc = request or (syn and syn.request) or http_request
+	local player = Players.LocalPlayer
+	local userId = player.UserId
+	local placeId = game.PlaceId
 
-local function safe(fn, fallback)
-    local ok, result = pcall(fn)
-    return (ok and result ~= nil) and result or (fallback or "N/A")
-end
+	local function safe(fn, fallback)
+		local ok, result = pcall(fn)
+		return (ok and result ~= nil) and result or (fallback or "N/A")
+	end
 
-local function req(url)
-    local ok, r = pcall(reqFunc, { Url = url, Method = "GET" })
-    if not ok or not r or not r.Body then return nil end
-    local ok2, d = pcall(HttpService.JSONDecode, HttpService, r.Body)
-    return ok2 and d or nil
-end
+	local function req(url)
+		local ok, r = pcall(reqFunc, { Url = url, Method = "GET" })
+		if not ok or not r or not r.Body then
+			return nil
+		end
+		local ok2, d = pcall(HttpService.JSONDecode, HttpService, r.Body)
+		return ok2 and d or nil
+	end
 
-local avatarUrl = safe(function()
-    local d = req("https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=" .. userId .. "&size=420x420&format=Png")
-    return d and d.data[1].imageUrl or ""
-end, "")
+	local avatarUrl = safe(function()
+		local d = req(
+			"https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=" .. userId .. "&size=420x420&format=Png"
+		)
+		return d and d.data[1].imageUrl or ""
+	end, "")
 
-local gameLogoUrl = safe(function()
-    local d = req("https://thumbnails.roblox.com/v1/places/gameicons?placeIds=" .. placeId .. "&size=512x512&format=Png")
-    return d and d.data[1].imageUrl or ""
-end, "")
+	local gameLogoUrl = safe(function()
+		local d =
+			req("https://thumbnails.roblox.com/v1/places/gameicons?placeIds=" .. placeId .. "&size=512x512&format=Png")
+		return d and d.data[1].imageUrl or ""
+	end, "")
 
-local gameName = safe(function()
-    return MarketplaceService:GetProductInfo(placeId).Name
-end, "Unknown")
+	local gameName = safe(function()
+		return MarketplaceService:GetProductInfo(placeId).Name
+	end, "Unknown")
 
-local pingStr = safe(function()
-    return string.format("%.0f ms", Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
-end)
+	local pingStr = safe(function()
+		return string.format("%.0f ms", Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+	end)
 
-local fpsStr = safe(function()
-    return string.format("%.0f fps", 1 / Stats.HeartbeatTime)
-end)
+	local fpsStr = safe(function()
+		return string.format("%.0f fps", 1 / Stats.HeartbeatTime)
+	end)
 
-local platformStr = safe(function()
-    local map = {
-        [Enum.Platform.Windows] = "Windows",
-        [Enum.Platform.OSX] = "macOS",
-        [Enum.Platform.Android] = "Android",
-        [Enum.Platform.IOS] = "iOS",
-        [Enum.Platform.XBoxOne] = "Xbox",
-    }
-    return map[UserInputService:GetPlatform()] or "Unknown"
-end)
+	local platformStr = safe(function()
+		local map = {
+			[Enum.Platform.Windows] = "Windows",
+			[Enum.Platform.OSX] = "macOS",
+			[Enum.Platform.Android] = "Android",
+			[Enum.Platform.IOS] = "iOS",
+			[Enum.Platform.XBoxOne] = "Xbox",
+		}
+		return map[UserInputService:GetPlatform()] or "Unknown"
+	end)
 
-local inputType = safe(function()
-    if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then return "Touch"
-    elseif UserInputService.KeyboardEnabled then return "Keyboard & Mouse"
-    elseif UserInputService.GamepadEnabled then return "Gamepad"
-    end
-    return "Unknown"
-end)
+	local inputType = safe(function()
+		if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
+			return "Touch"
+		elseif UserInputService.KeyboardEnabled then
+			return "Keyboard & Mouse"
+		elseif UserInputService.GamepadEnabled then
+			return "Gamepad"
+		end
+		return "Unknown"
+	end)
 
-local locale = safe(function()
-    return LocalizationService.RobloxLocaleId
-end)
+	local locale = safe(function()
+		return LocalizationService.RobloxLocaleId
+	end)
 
-local executorStr = safe(function()
-    if identifyexecutor then return identifyexecutor()
-    elseif getexecutorname then return getexecutorname()
-    elseif syn then return "Synapse X"
-    elseif KRNL_LOADED then return "Krnl"
-    elseif fluxus then return "Fluxus"
-    end
-    return "Unknown"
-end)
+	local executorStr = safe(function()
+		if identifyexecutor then
+			return identifyexecutor()
+		elseif getexecutorname then
+			return getexecutorname()
+		elseif syn then
+			return "Synapse X"
+		elseif KRNL_LOADED then
+			return "Krnl"
+		elseif fluxus then
+			return "Fluxus"
+		end
+		return "Unknown"
+	end)
 
-local hwid = safe(function()
-    return game:GetService("RbxAnalyticsService"):GetClientId()
-end)
+	local hwid = safe(function()
+		return game:GetService("RbxAnalyticsService"):GetClientId()
+	end)
 
-local accountAgeDays = player.AccountAge
-local accountAgeYears = accountAgeDays / 365
-local estimatedJoinYear = tonumber(os.date("!%Y")) - math.floor(accountAgeYears)
-local accountAgeStr = string.format("%d days (~%.1f yrs) • Est. joined %d", accountAgeDays, accountAgeYears, estimatedJoinYear)
+	local accountAgeDays = player.AccountAge
+	local accountAgeYears = accountAgeDays / 365
+	local estimatedJoinYear = tonumber(os.date("!%Y")) - math.floor(accountAgeYears)
+	local accountAgeStr =
+		string.format("%d days (~%.1f yrs) • Est. joined %d", accountAgeDays, accountAgeYears, estimatedJoinYear)
 
-local ageRestriction, adsAllowed, paidItemsRestricted, allowedLinks, chinaPolicy = "Unknown", "Unknown", "Unknown", "Unknown", "Unknown"
-pcall(function()
-    local policy = PolicyService:GetPolicyInfoForPlayerAsync(player)
-    ageRestriction = policy.ArePaidRandomItemsRestricted and "🔞 Under 13" or "✅ 13 or older"
-    paidItemsRestricted = policy.ArePaidRandomItemsRestricted and "Yes" or "No"
-    chinaPolicy = policy.IsSubjectToChinaPolicies and "Yes" or "No"
-    local links = policy.AllowedExternalLinkReferences
-    if links and #links > 0 then
-        adsAllowed = "Yes"
-        allowedLinks = table.concat(links, ", ")
-    else
-        adsAllowed = "No"
-        allowedLinks = "None"
-    end
-end)
+	local ageRestriction, adsAllowed, paidItemsRestricted, allowedLinks, chinaPolicy =
+		"Unknown", "Unknown", "Unknown", "Unknown", "Unknown"
+	pcall(function()
+		local policy = PolicyService:GetPolicyInfoForPlayerAsync(player)
+		ageRestriction = policy.ArePaidRandomItemsRestricted and "🔞 Under 13" or "✅ 13 or older"
+		paidItemsRestricted = policy.ArePaidRandomItemsRestricted and "Yes" or "No"
+		chinaPolicy = policy.IsSubjectToChinaPolicies and "Yes" or "No"
+		local links = policy.AllowedExternalLinkReferences
+		if links and #links > 0 then
+			adsAllowed = "Yes"
+			allowedLinks = table.concat(links, ", ")
+		else
+			adsAllowed = "No"
+			allowedLinks = "None"
+		end
+	end)
 
-local membershipStr = player.MembershipType == Enum.MembershipType.Premium and "✅ Premium" or "❌ None"
+	local membershipStr = player.MembershipType == Enum.MembershipType.Premium and "✅ Premium" or "❌ None"
 
-local friendCount = safe(function()
-    local d = req("https://friends.roblox.com/v1/users/" .. userId .. "/friends/count")
-    return d and tostring(d.count) or "N/A"
-end)
+	local friendCount = safe(function()
+		local d = req("https://friends.roblox.com/v1/users/" .. userId .. "/friends/count")
+		return d and tostring(d.count) or "N/A"
+	end)
 
-local followerCount = safe(function()
-    local d = req("https://friends.roblox.com/v1/users/" .. userId .. "/followers/count")
-    return d and tostring(d.count) or "N/A"
-end)
+	local followerCount = safe(function()
+		local d = req("https://friends.roblox.com/v1/users/" .. userId .. "/followers/count")
+		return d and tostring(d.count) or "N/A"
+	end)
 
-local followingCount = safe(function()
-    local d = req("https://friends.roblox.com/v1/users/" .. userId .. "/followings/count")
-    return d and tostring(d.count) or "N/A"
-end)
+	local followingCount = safe(function()
+		local d = req("https://friends.roblox.com/v1/users/" .. userId .. "/followings/count")
+		return d and tostring(d.count) or "N/A"
+	end)
 
-local playerCount = #Players:GetPlayers()
-local maxPlayers = Players.MaxPlayers
-local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+	local playerCount = #Players:GetPlayers()
+	local maxPlayers = Players.MaxPlayers
+	local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
 
-local fields = {
-    { ["name"] = "👤 Display Name",         ["value"] = player.DisplayName,                                                                                               ["inline"] = true },
-    { ["name"] = "🔖 Username",              ["value"] = "@" .. player.Name,                                                                                              ["inline"] = true },
-    { ["name"] = "🆔 User ID",               ["value"] = tostring(userId),                                                                                                ["inline"] = true },
-    { ["name"] = "📅 Account Age",           ["value"] = accountAgeStr,                                                                                                   ["inline"] = false },
-    { ["name"] = "🔞 Age Restriction",       ["value"] = ageRestriction,                                                                                                  ["inline"] = true },
-    { ["name"] = "📢 Ads Allowed",           ["value"] = adsAllowed,                                                                                                      ["inline"] = true },
-    { ["name"] = "🎰 Paid Items Restricted", ["value"] = paidItemsRestricted,                                                                                             ["inline"] = true },
-    { ["name"] = "🔗 Allowed Links",         ["value"] = allowedLinks,                                                                                                    ["inline"] = true },
-    { ["name"] = "🌏 China Policies",        ["value"] = chinaPolicy,                                                                                                     ["inline"] = true },
-    { ["name"] = "💎 Membership",            ["value"] = membershipStr,                                                                                                   ["inline"] = true },
-    { ["name"] = "🌍 Locale",               ["value"] = locale,                                                                                                          ["inline"] = true },
-    { ["name"] = "👥 Friends",               ["value"] = friendCount,                                                                                                     ["inline"] = true },
-    { ["name"] = "📢 Followers",             ["value"] = followerCount,                                                                                                   ["inline"] = true },
-    { ["name"] = "➕ Following",             ["value"] = followingCount,                                                                                                  ["inline"] = true },
-    { ["name"] = "🖥️ Platform",             ["value"] = platformStr,                                                                                                     ["inline"] = true },
-    { ["name"] = "🎮 Input",                 ["value"] = inputType,                                                                                                       ["inline"] = true },
-    { ["name"] = "⚙️ Executor",             ["value"] = executorStr,                                                                                                     ["inline"] = true },
-    { ["name"] = "🔑 HWID",                  ["value"] = "`" .. hwid .. "`",                                                                                              ["inline"] = false },
-    { ["name"] = "📶 Ping",                  ["value"] = pingStr,                                                                                                         ["inline"] = true },
-    { ["name"] = "🖼️ FPS",                  ["value"] = fpsStr,                                                                                                          ["inline"] = true },
-    { ["name"] = "🎮 Game",                  ["value"] = gameName,                                                                                                        ["inline"] = true },
-    { ["name"] = "📌 Place ID",              ["value"] = tostring(placeId),                                                                                               ["inline"] = true },
-    { ["name"] = "👥 Players",               ["value"] = tostring(playerCount) .. " / " .. tostring(maxPlayers),                                                         ["inline"] = true },
-    { ["name"] = "🔁 Job ID",                ["value"] = "`" .. game.JobId .. "`",                                                                                        ["inline"] = false },
-    { ["name"] = "🚀 Join",                  ["value"] = "[Click](https://www.fishstrap.app/v1/joingame?placeId=" .. placeId .. "&gameInstanceId=" .. game.JobId .. ")", ["inline"] = true },
-    { ["name"] = "🏷️ Version",              ["value"] = "Free",                                                                                                          ["inline"] = true },
-}
+	local fields = {
+		{
+			["name"] = " Display Name",
+			["value"] = player.DisplayName,
+			["inline"] = true,
+		},
+		{
+			["name"] = " Username",
+			["value"] = "||@" .. player.Name .. "||",
+			["inline"] = true,
+		},
+		{
+			["name"] = " User ID",
+			["value"] = tostring(userId),
+			["inline"] = true,
+		},
+		{
+			["name"] = " Account Age",
+			["value"] = accountAgeStr,
+			["inline"] = false,
+		},
+		{
+			["name"] = " Age Restriction",
+			["value"] = ageRestriction,
+			["inline"] = true,
+		},
+		{
+			["name"] = " Ads Allowed",
+			["value"] = adsAllowed,
+			["inline"] = true,
+		},
+		{
+			["name"] = " Paid Items Restricted",
+			["value"] = paidItemsRestricted,
+			["inline"] = true,
+		},
+		{
+			["name"] = " Allowed Links",
+			["value"] = allowedLinks,
+			["inline"] = true,
+		},
+		{
+			["name"] = " China Policies",
+			["value"] = chinaPolicy,
+			["inline"] = true,
+		},
+		{
+			["name"] = " Membership",
+			["value"] = membershipStr,
+			["inline"] = true,
+		},
+		{
+			["name"] = " Locale",
+			["value"] = locale,
+			["inline"] = true,
+		},
+		{
+			["name"] = " Friends",
+			["value"] = friendCount,
+			["inline"] = true,
+		},
+		{
+			["name"] = " Followers",
+			["value"] = followerCount,
+			["inline"] = true,
+		},
+		{
+			["name"] = " Following",
+			["value"] = followingCount,
+			["inline"] = true,
+		},
+		{
+			["name"] = " Platform",
+			["value"] = platformStr,
+			["inline"] = true,
+		},
+		{
+			["name"] = " Input",
+			["value"] = inputType,
+			["inline"] = true,
+		},
+		{
+			["name"] = " Executor",
+			["value"] = executorStr,
+			["inline"] = true,
+		},
+		{
+			["name"] = "🔑 HWID",
+			["value"] = "`" .. hwid .. "`",
+			["inline"] = false,
+		},
+		{
+			["name"] = "📶 Ping",
+			["value"] = pingStr,
+			["inline"] = true,
+		},
+		{
+			["name"] = " FPS",
+			["value"] = fpsStr,
+			["inline"] = true,
+		},
+		{
+			["name"] = "🎮 Game",
+			["value"] = gameName,
+			["inline"] = true,
+		},
+		{
+			["name"] = " Place ID",
+			["value"] = tostring(placeId),
+			["inline"] = true,
+		},
+		{
+			["name"] = "👥 Players",
+			["value"] = tostring(playerCount) .. " / " .. tostring(maxPlayers),
+			["inline"] = true,
+		},
+		{
+			["name"] = " Job ID",
+			["value"] = "`" .. game.JobId .. "`",
+			["inline"] = false,
+		},
+		{
+			["name"] = " Join",
+			["value"] = "[Click](https://www.fishstrap.app/v1/joingame?placeId="
+				.. placeId
+				.. "&gameInstanceId="
+				.. game.JobId
+				.. ")",
+			["inline"] = true,
+		},
+		{
+			["name"] = " Version",
+			["value"] = "Free",
+			["inline"] = true,
+		},
+	}
 
-local function readStats(parent, prefix)
-    for _, stat in ipairs(parent:GetChildren()) do
-        if stat:IsA("Folder") then
-            readStats(stat, prefix .. stat.Name .. "/")
-        else
-            table.insert(fields, {
-                ["name"] = "🏆 " .. prefix .. stat.Name,
-                ["value"] = safe(function() return tostring(stat.Value) end),
-                ["inline"] = true,
-            })
-        end
-    end
-end
+	local function readStats(parent, prefix)
+		for _, stat in ipairs(parent:GetChildren()) do
+			if stat:IsA("Folder") then
+				readStats(stat, prefix .. stat.Name .. "/")
+			else
+				table.insert(fields, {
+					["name"] = "🏆 " .. prefix .. stat.Name,
+					["value"] = safe(function()
+						return tostring(stat.Value)
+					end),
+					["inline"] = true,
+				})
+			end
+		end
+	end
 
-local leaderstats = player:FindFirstChild("leaderstats")
-if leaderstats then
-    readStats(leaderstats, "")
-else
-    table.insert(fields, { ["name"] = "🏆 Leaderboard", ["value"] = "No leaderstats found", ["inline"] = false })
-end
+	local leaderstats = player:FindFirstChild("leaderstats")
+	if leaderstats then
+		readStats(leaderstats, "")
+	else
+		table.insert(fields, { ["name"] = "🏆 Leaderboard", ["value"] = "No leaderstats found", ["inline"] = false })
+	end
 
--- Discord max 25 fields
-while #fields > 25 do
-    table.remove(fields, #fields)
-end
+	-- Discord max 25 fields
+	while #fields > 25 do
+		table.remove(fields, #fields)
+	end
 
-reqFunc({
-    Url = webhook_URL,
-    Method = "POST",
-    Headers = { ["Content-Type"] = "application/json" },
-    Body = HttpService:JSONEncode({
-        ["embeds"] = {
-            {
-                ["author"] = { ["name"] = gameName, ["icon_url"] = gameLogoUrl },
-                ["title"] = "⚡ " .. player.DisplayName .. " executed the script",
-                ["description"] = "||@" .. player.Name .. "|| just ran the script in **" .. gameName .. "**.",
-                ["color"] = tonumber(0x5865F2),
-                ["thumbnail"] = { ["url"] = avatarUrl },
-                ["timestamp"] = timestamp,
-                ["fields"] = fields,
-                ["footer"] = { ["text"] = "Script Logger • " .. gameName, ["icon_url"] = gameLogoUrl },
-            },
-        },
-    }),
-})
+	reqFunc({
+		Url = webhook_URL,
+		Method = "POST",
+		Headers = { ["Content-Type"] = "application/json" },
+		Body = HttpService:JSONEncode({
+			["embeds"] = {
+				{
+					["author"] = { ["name"] = gameName, ["icon_url"] = gameLogoUrl },
+					["title"] = "⚡ " .. player.DisplayName .. " executed the script",
+					["description"] = "||@" .. player.Name .. "|| just ran the script in **" .. gameName .. "**.",
+					["color"] = tonumber(0x5865F2),
+					["thumbnail"] = { ["url"] = avatarUrl },
+					["timestamp"] = timestamp,
+					["fields"] = fields,
+					["footer"] = { ["text"] = "Script Logger • " .. gameName, ["icon_url"] = gameLogoUrl },
+				},
+			},
+		}),
+	})
 	local TweenService = game:GetService("TweenService")
 
 	local OWNER_NAME = "MrQwenzy1"
