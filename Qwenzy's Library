@@ -186,17 +186,25 @@ local function Shadow(parent)
     return s
 end
 
--- Shared top-level overlay for ripples
--- IgnoreGuiInset=true means (0,0) = true screen top-left (ignores the Roblox top bar)
--- AbsolutePosition of GUI elements also ignores the inset offset when read raw,
--- BUT Roblox adds the inset to AbsolutePosition for elements inside normal ScreenGuis.
--- So: overlay origin = screen top-left, cursor = screen coords, AbsolutePos = inset-offset coords.
--- We must subtract the inset from AbsolutePosition to get true screen coords.
-local GuiService = game:GetService("GuiService")
+-- ===================================================
+--  RIPPLE EFFECT
+-- ===================================================
+-- Parent ripple directly to the button itself.
+-- ClipsDescendants=false on the card means the ripple expands outside.
+-- We set a very high ZIndex and use a separate non-clipping container
+-- parented to the top-level ScreenGui so it always renders on top.
+--
+-- Coordinate truth: Mouse.X/Y and AbsolutePosition are BOTH in the same
+-- inset-adjusted space. We just subtract AbsolutePosition to get local
+-- offset within the element, then place in the overlay using AbsolutePosition.
+--
+-- Overlay uses IgnoreGuiInset=false so its coordinate space matches
+-- AbsolutePosition exactly — no conversion needed.
+
 local RippleOverlaySG = New("ScreenGui", {
     Name="QwenzyRippleOverlay", ResetOnSpawn=false,
     ZIndexBehavior=Enum.ZIndexBehavior.Global,
-    IgnoreGuiInset=true,   -- overlay origin = true screen (0,0)
+    IgnoreGuiInset=false,   -- same coord space as AbsolutePosition
     DisplayOrder=9999,
 }, ROOT)
 local RippleOverlay = New("Frame", {
@@ -205,22 +213,19 @@ local RippleOverlay = New("Frame", {
 }, RippleOverlaySG)
 
 local function Ripple(btn, customColor)
-    local ap = btn.AbsolutePosition  -- inset-offset coords (inset already added by Roblox)
+    local ap = btn.AbsolutePosition  -- inset-adjusted screen coords
     local as = btn.AbsoluteSize
-    local inset = GuiService:GetGuiInset()
-    -- Convert to true screen coords (matching IgnoreGuiInset=true overlay)
-    local bx = ap.X - inset.X
-    local by = ap.Y - inset.Y
-    -- Clamp cursor to button bounds in true screen space
-    local cx = math.clamp(CursorX() - inset.X, bx, bx + as.X)
-    local cy = math.clamp(CursorY() - inset.Y, by, by + as.Y)
+    -- Cursor is also in inset-adjusted coords — no conversion needed
+    local cx = math.clamp(CursorX(), ap.X, ap.X + as.X)
+    local cy = math.clamp(CursorY(), ap.Y, ap.Y + as.Y)
 
     local color = customColor or Color3.fromRGB(180, 150, 255)
 
     -- Outer expanding ring
     local ring = New("Frame", {
         BackgroundTransparency=1, Size=UDim2.new(0,0,0,0),
-        Position=UDim2.new(0,cx,0,cy), AnchorPoint=Vector2.new(0.5,0.5),
+        Position=UDim2.new(0,cx,0,cy),
+        AnchorPoint=Vector2.new(0.5,0.5),
         ZIndex=32767,
     }, RippleOverlay)
     Round(ring, 999)
@@ -234,7 +239,8 @@ local function Ripple(btn, customColor)
     -- Inner filled bloom
     local rp = New("Frame", {
         BackgroundColor3=color, BackgroundTransparency=0.72,
-        Size=UDim2.new(0,0,0,0), Position=UDim2.new(0,cx,0,cy),
+        Size=UDim2.new(0,0,0,0),
+        Position=UDim2.new(0,cx,0,cy),
         AnchorPoint=Vector2.new(0.5,0.5), ZIndex=32766,
     }, RippleOverlay)
     Round(rp, 999)
