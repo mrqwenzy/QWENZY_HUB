@@ -186,60 +186,61 @@ local function Shadow(parent)
     return s
 end
 
--- Shared top-level overlay for ripples — IgnoreGuiInset=false so AbsolutePosition matches
+-- Shared top-level overlay for ripples
+-- IgnoreGuiInset=true means (0,0) = true screen top-left (ignores the Roblox top bar)
+-- AbsolutePosition of GUI elements also ignores the inset offset when read raw,
+-- BUT Roblox adds the inset to AbsolutePosition for elements inside normal ScreenGuis.
+-- So: overlay origin = screen top-left, cursor = screen coords, AbsolutePos = inset-offset coords.
+-- We must subtract the inset from AbsolutePosition to get true screen coords.
+local GuiService = game:GetService("GuiService")
 local RippleOverlaySG = New("ScreenGui", {
     Name="QwenzyRippleOverlay", ResetOnSpawn=false,
     ZIndexBehavior=Enum.ZIndexBehavior.Global,
-    IgnoreGuiInset=false,   -- MUST be false: AbsolutePosition already includes inset
+    IgnoreGuiInset=true,   -- overlay origin = true screen (0,0)
     DisplayOrder=9999,
 }, ROOT)
 local RippleOverlay = New("Frame", {
-    Size=UDim2.new(1,0,1,0), Position=UDim2.new(0,0,0,0),
-    BackgroundTransparency=1, BorderSizePixel=0, ZIndex=32766,
-    ClipsDescendants=false,
+    Size=UDim2.new(1,0,1,0), BackgroundTransparency=1,
+    BorderSizePixel=0, ZIndex=32766, ClipsDescendants=false,
 }, RippleOverlaySG)
 
 local function Ripple(btn, customColor)
-    local ap  = btn.AbsolutePosition   -- already in inset-adjusted coords
-    local as  = btn.AbsoluteSize
-    -- GuiInset offset (top bar): AbsolutePosition accounts for it, but our overlay
-    -- sits inside a IgnoreGuiInset=false ScreenGui, so positions match directly.
-    local inset = game:GetService("GuiService"):GetGuiInset()
-    local mx = math.clamp(CursorX(), ap.X, ap.X + as.X) - inset.X
-    local my = math.clamp(CursorY(), ap.Y, ap.Y + as.Y) - inset.Y
+    local ap = btn.AbsolutePosition  -- inset-offset coords (inset already added by Roblox)
+    local as = btn.AbsoluteSize
+    local inset = GuiService:GetGuiInset()
+    -- Convert to true screen coords (matching IgnoreGuiInset=true overlay)
+    local bx = ap.X - inset.X
+    local by = ap.Y - inset.Y
+    -- Clamp cursor to button bounds in true screen space
+    local cx = math.clamp(CursorX() - inset.X, bx, bx + as.X)
+    local cy = math.clamp(CursorY() - inset.Y, by, by + as.Y)
 
     local color = customColor or Color3.fromRGB(180, 150, 255)
 
-    -- Outer ring (fast, thin)
+    -- Outer expanding ring
     local ring = New("Frame", {
-        BackgroundTransparency=1,
-        Size=UDim2.new(0,0,0,0),
-        Position=UDim2.new(0, mx, 0, my),
-        AnchorPoint=Vector2.new(0.5,0.5),
+        BackgroundTransparency=1, Size=UDim2.new(0,0,0,0),
+        Position=UDim2.new(0,cx,0,cy), AnchorPoint=Vector2.new(0.5,0.5),
         ZIndex=32767,
     }, RippleOverlay)
     Round(ring, 999)
     local rs = Instance.new("UIStroke")
-    rs.Color = color; rs.Thickness = 1.5; rs.Transparency = 0.1
-    rs.Parent = ring
+    rs.Color = color; rs.Thickness = 1.5; rs.Transparency = 0.1; rs.Parent = ring
     local rsz = math.max(as.X, as.Y) * 1.8
-    Tween(ring, {Size=UDim2.new(0,rsz,0,rsz)}, 0.45, Enum.EasingStyle.Quart)
-    Tween(rs,   {Transparency=1}, 0.45, Enum.EasingStyle.Quart)
+    Tween(ring, {Size=UDim2.new(0,rsz,0,rsz)}, 0.42, Enum.EasingStyle.Quart)
+    Tween(rs,   {Transparency=1},               0.42, Enum.EasingStyle.Quart)
     task.delay(0.45, function() if ring then ring:Destroy() end end)
 
-    -- Inner fill (slower, filled)
+    -- Inner filled bloom
     local rp = New("Frame", {
-        BackgroundColor3=color,
-        BackgroundTransparency=0.72,
-        Size=UDim2.new(0,0,0,0),
-        Position=UDim2.new(0, mx, 0, my),
-        AnchorPoint=Vector2.new(0.5,0.5),
-        ZIndex=32766,
+        BackgroundColor3=color, BackgroundTransparency=0.72,
+        Size=UDim2.new(0,0,0,0), Position=UDim2.new(0,cx,0,cy),
+        AnchorPoint=Vector2.new(0.5,0.5), ZIndex=32766,
     }, RippleOverlay)
     Round(rp, 999)
     local sz = math.max(as.X, as.Y) * 2.2
-    Tween(rp, {Size=UDim2.new(0,sz,0,sz), BackgroundTransparency=1}, 0.6, Enum.EasingStyle.Quad)
-    task.delay(0.6, function() if rp then rp:Destroy() end end)
+    Tween(rp, {Size=UDim2.new(0,sz,0,sz), BackgroundTransparency=1}, 0.55, Enum.EasingStyle.Quad)
+    task.delay(0.58, function() if rp then rp:Destroy() end end)
 end
 
 -- ===================================================
@@ -287,111 +288,41 @@ function ConfigManager:Set(k, v)
 end
 
 -- ===================================================
---  THEMES
+--  SINGLE GLASS THEME  (purple, dark, frosted)
 -- ===================================================
-local Themes = {}
-
-Themes.Default = {
-    BG=Color3.fromRGB(11,11,20), BGS=Color3.fromRGB(16,16,28),
-    Surface=Color3.fromRGB(20,20,35), SurfaceH=Color3.fromRGB(26,26,44),
-    Panel=Color3.fromRGB(13,13,22),
-    Acc=Color3.fromRGB(108,76,255), AccB=Color3.fromRGB(148,116,255), AccD=Color3.fromRGB(72,48,180),
-    TextP=Color3.fromRGB(238,236,255), TextS=Color3.fromRGB(155,148,200),
-    TextM=Color3.fromRGB(88,82,130), TextA=Color3.fromRGB(175,155,255),
-    OK=Color3.fromRGB(72,214,132), Warn=Color3.fromRGB(255,188,56), Err=Color3.fromRGB(255,75,85),
-    Border=Color3.fromRGB(50,44,88), TOn=Color3.fromRGB(108,76,255), TOff=Color3.fromRGB(36,34,58),
-    Top=Color3.fromRGB(13,13,22), Tab=Color3.fromRGB(13,13,22),
+local T = {
+    -- Backgrounds — very dark, almost black with purple tint
+    BG      = Color3.fromRGB(8,  7,  16),
+    BGS     = Color3.fromRGB(12, 10, 22),
+    Panel   = Color3.fromRGB(14, 12, 26),
+    -- Surfaces — slightly lighter glass panels
+    Surface = Color3.fromRGB(22, 18, 40),
+    SurfaceH= Color3.fromRGB(30, 25, 54),
+    -- Accent — vivid purple
+    Acc     = Color3.fromRGB(120, 80, 255),
+    AccB    = Color3.fromRGB(160,120, 255),
+    AccD    = Color3.fromRGB( 80, 50, 190),
+    -- Text
+    TextP   = Color3.fromRGB(240, 235, 255),
+    TextS   = Color3.fromRGB(160, 148, 210),
+    TextM   = Color3.fromRGB( 90,  80, 140),
+    TextA   = Color3.fromRGB(180, 155, 255),
+    -- Semantic
+    OK      = Color3.fromRGB( 72, 214, 132),
+    Warn    = Color3.fromRGB(255, 188,  56),
+    Err     = Color3.fromRGB(255,  75,  85),
+    -- Border — subtle purple-tinted glass edge
+    Border  = Color3.fromRGB( 55, 44, 100),
+    -- Toggle
+    TOn     = Color3.fromRGB(120, 80, 255),
+    TOff    = Color3.fromRGB( 30, 24,  55),
+    -- Topbar / sidebar
+    Top     = Color3.fromRGB(10,  8,  20),
+    Tab     = Color3.fromRGB(10,  8,  20),
 }
-Themes.Midnight = {
-    BG=Color3.fromRGB(5,8,16), BGS=Color3.fromRGB(9,14,24),
-    Surface=Color3.fromRGB(13,20,34), SurfaceH=Color3.fromRGB(18,28,46),
-    Panel=Color3.fromRGB(7,10,18),
-    Acc=Color3.fromRGB(28,136,255), AccB=Color3.fromRGB(78,176,255), AccD=Color3.fromRGB(16,96,200),
-    TextP=Color3.fromRGB(218,232,255), TextS=Color3.fromRGB(130,160,200),
-    TextM=Color3.fromRGB(72,96,138), TextA=Color3.fromRGB(110,188,255),
-    OK=Color3.fromRGB(56,204,124), Warn=Color3.fromRGB(255,188,56), Err=Color3.fromRGB(255,75,85),
-    Border=Color3.fromRGB(24,50,88), TOn=Color3.fromRGB(28,136,255), TOff=Color3.fromRGB(16,32,56),
-    Top=Color3.fromRGB(6,10,18), Tab=Color3.fromRGB(6,10,18),
-}
-Themes.Rose = {
-    BG=Color3.fromRGB(16,8,14), BGS=Color3.fromRGB(24,12,20),
-    Surface=Color3.fromRGB(30,15,24), SurfaceH=Color3.fromRGB(38,20,32),
-    Panel=Color3.fromRGB(14,7,12),
-    Acc=Color3.fromRGB(232,56,106), AccB=Color3.fromRGB(255,96,142), AccD=Color3.fromRGB(180,36,80),
-    TextP=Color3.fromRGB(255,232,240), TextS=Color3.fromRGB(198,155,172),
-    TextM=Color3.fromRGB(136,92,110), TextA=Color3.fromRGB(255,148,172),
-    OK=Color3.fromRGB(72,214,132), Warn=Color3.fromRGB(255,188,56), Err=Color3.fromRGB(255,75,85),
-    Border=Color3.fromRGB(88,36,58), TOn=Color3.fromRGB(232,56,106), TOff=Color3.fromRGB(52,22,36),
-    Top=Color3.fromRGB(13,6,11), Tab=Color3.fromRGB(13,6,11),
-}
-Themes.Emerald = {
-    BG=Color3.fromRGB(6,15,11), BGS=Color3.fromRGB(9,22,16),
-    Surface=Color3.fromRGB(11,28,20), SurfaceH=Color3.fromRGB(15,36,26),
-    Panel=Color3.fromRGB(5,12,9),
-    Acc=Color3.fromRGB(36,204,124), AccB=Color3.fromRGB(76,236,158), AccD=Color3.fromRGB(22,154,88),
-    TextP=Color3.fromRGB(218,255,236), TextS=Color3.fromRGB(134,196,162),
-    TextM=Color3.fromRGB(74,128,98), TextA=Color3.fromRGB(96,238,158),
-    OK=Color3.fromRGB(72,214,132), Warn=Color3.fromRGB(255,188,56), Err=Color3.fromRGB(255,75,85),
-    Border=Color3.fromRGB(22,72,48), TOn=Color3.fromRGB(36,204,124), TOff=Color3.fromRGB(16,48,32),
-    Top=Color3.fromRGB(4,10,7), Tab=Color3.fromRGB(4,10,7),
-}
-Themes.Neon = {
-    BG=Color3.fromRGB(4,4,8), BGS=Color3.fromRGB(7,7,14),
-    Surface=Color3.fromRGB(10,10,20), SurfaceH=Color3.fromRGB(14,14,28),
-    Panel=Color3.fromRGB(5,5,10),
-    Acc=Color3.fromRGB(0,255,180), AccB=Color3.fromRGB(80,255,210), AccD=Color3.fromRGB(0,180,120),
-    TextP=Color3.fromRGB(220,255,245), TextS=Color3.fromRGB(130,200,180),
-    TextM=Color3.fromRGB(70,120,105), TextA=Color3.fromRGB(80,255,200),
-    OK=Color3.fromRGB(0,255,180), Warn=Color3.fromRGB(255,220,50), Err=Color3.fromRGB(255,50,100),
-    Border=Color3.fromRGB(0,80,60), TOn=Color3.fromRGB(0,255,180), TOff=Color3.fromRGB(8,36,28),
-    Top=Color3.fromRGB(3,3,6), Tab=Color3.fromRGB(3,3,6),
-}
-Themes.Sunset = {
-    BG=Color3.fromRGB(12,6,18), BGS=Color3.fromRGB(18,9,26),
-    Surface=Color3.fromRGB(24,12,34), SurfaceH=Color3.fromRGB(32,16,44),
-    Panel=Color3.fromRGB(10,5,14),
-    Acc=Color3.fromRGB(255,100,50), AccB=Color3.fromRGB(255,150,80), AccD=Color3.fromRGB(200,70,30),
-    TextP=Color3.fromRGB(255,240,225), TextS=Color3.fromRGB(200,165,140),
-    TextM=Color3.fromRGB(130,100,80), TextA=Color3.fromRGB(255,170,110),
-    OK=Color3.fromRGB(80,220,140), Warn=Color3.fromRGB(255,200,50), Err=Color3.fromRGB(255,60,80),
-    Border=Color3.fromRGB(90,40,20), TOn=Color3.fromRGB(255,100,50), TOff=Color3.fromRGB(50,22,12),
-    Top=Color3.fromRGB(9,4,12), Tab=Color3.fromRGB(9,4,12),
-}
-Themes.Ocean = {
-    BG=Color3.fromRGB(4,10,20), BGS=Color3.fromRGB(6,16,30),
-    Surface=Color3.fromRGB(8,22,40), SurfaceH=Color3.fromRGB(11,30,54),
-    Panel=Color3.fromRGB(4,10,18),
-    Acc=Color3.fromRGB(0,180,255), AccB=Color3.fromRGB(60,210,255), AccD=Color3.fromRGB(0,130,200),
-    TextP=Color3.fromRGB(210,240,255), TextS=Color3.fromRGB(120,175,210),
-    TextM=Color3.fromRGB(60,110,150), TextA=Color3.fromRGB(80,210,255),
-    OK=Color3.fromRGB(50,220,150), Warn=Color3.fromRGB(255,200,50), Err=Color3.fromRGB(255,70,90),
-    Border=Color3.fromRGB(0,60,100), TOn=Color3.fromRGB(0,180,255), TOff=Color3.fromRGB(6,30,50),
-    Top=Color3.fromRGB(3,8,16), Tab=Color3.fromRGB(3,8,16),
-}
-Themes.Void = {
-    BG=Color3.fromRGB(0,0,0), BGS=Color3.fromRGB(5,5,5),
-    Surface=Color3.fromRGB(10,10,10), SurfaceH=Color3.fromRGB(16,16,16),
-    Panel=Color3.fromRGB(4,4,4),
-    Acc=Color3.fromRGB(200,200,200), AccB=Color3.fromRGB(255,255,255), AccD=Color3.fromRGB(140,140,140),
-    TextP=Color3.fromRGB(240,240,240), TextS=Color3.fromRGB(160,160,160),
-    TextM=Color3.fromRGB(80,80,80), TextA=Color3.fromRGB(220,220,220),
-    OK=Color3.fromRGB(80,200,120), Warn=Color3.fromRGB(220,180,60), Err=Color3.fromRGB(220,60,70),
-    Border=Color3.fromRGB(30,30,30), TOn=Color3.fromRGB(200,200,200), TOff=Color3.fromRGB(20,20,20),
-    Top=Color3.fromRGB(2,2,2), Tab=Color3.fromRGB(2,2,2),
-}
-Themes.Arctic = {
-    BG=Color3.fromRGB(235,240,250), BGS=Color3.fromRGB(220,228,242),
-    Surface=Color3.fromRGB(255,255,255), SurfaceH=Color3.fromRGB(240,244,252),
-    Panel=Color3.fromRGB(225,232,245),
-    Acc=Color3.fromRGB(60,120,255), AccB=Color3.fromRGB(100,155,255), AccD=Color3.fromRGB(40,90,210),
-    TextP=Color3.fromRGB(20,30,60), TextS=Color3.fromRGB(80,100,150),
-    TextM=Color3.fromRGB(140,160,200), TextA=Color3.fromRGB(50,110,240),
-    OK=Color3.fromRGB(30,180,100), Warn=Color3.fromRGB(220,150,30), Err=Color3.fromRGB(220,50,70),
-    Border=Color3.fromRGB(190,205,230), TOn=Color3.fromRGB(60,120,255), TOff=Color3.fromRGB(200,210,230),
-    Top=Color3.fromRGB(210,220,238), Tab=Color3.fromRGB(210,220,238),
-}
-
-local BUILTIN_THEMES = {"Default","Midnight","Rose","Emerald","Neon","Sunset","Ocean","Void","Arctic"}
+-- Glass colours — pure white at varying alpha used for sheens
+local GLASS_W  = Color3.fromRGB(255,255,255)
+local GLASS_TR = 0.96   -- very subtle sheen
 
 -- ===================================================
 --  ICONS (Lucide via HttpGet)
@@ -437,7 +368,7 @@ Qwenzy.__index = Qwenzy
 Qwenzy.Flags = {}
 Qwenzy.Version = "3.0.0"
 Qwenzy._windows = {}
-Qwenzy._T = Themes.Default
+T = Themes.Default
 
 -- ===================================================
 --  NOTIFICATION
@@ -445,7 +376,7 @@ Qwenzy._T = Themes.Default
 local NotifSG, NotifCont
 local notifN = 0
 
-local function EnsureNotif(T)
+local function EnsureNotif()
     if NotifSG and NotifSG.Parent then return end
     NotifSG = New("ScreenGui", {Name="QwenzyNotifications", ResetOnSpawn=false,
         ZIndexBehavior=Enum.ZIndexBehavior.Sibling, IgnoreGuiInset=true}, ROOT)
@@ -463,8 +394,8 @@ local function EnsureNotif(T)
 end
 
 function Qwenzy:Notify(cfg)
-    local T = self._T
-    EnsureNotif(T)
+
+    EnsureNotif()
     notifN += 1
     local dur = cfg.Duration or 5
 
@@ -695,136 +626,136 @@ local function ShowLoading(title, subtitle, T)
     }, barFill)
 
     -- ── MINIGAME: Dodge the blocks ────────────────────
-    local GAME_H = CH - barY - 90
+    -- Use known pixel sizes — don't rely on AbsoluteSize which is 0 before first render
+    local GAME_W = CW - 48          -- gameArea pixel width
+    local GAME_H = CH - barY - 90   -- gameArea pixel height
     local gameArea = New("Frame", {
-        Size=UDim2.new(1,-48,0,GAME_H), Position=UDim2.new(0,24,0,barY+18),
-        BackgroundColor3=T.BG, BackgroundTransparency=0.6,
+        Size=UDim2.new(0,GAME_W,0,GAME_H),
+        Position=UDim2.new(0,24,0,barY+18),
+        BackgroundColor3=T.BG, BackgroundTransparency=0.55,
         BorderSizePixel=0, ZIndex=105, ClipsDescendants=true,
     }, card)
     Round(gameArea, 10)
-    Stroke(gameArea, T.Border, 1, 0.6)
+    Stroke(gameArea, T.Border, 1, 0.5)
 
-    -- Game label
     New("TextLabel", {
         Size=UDim2.new(1,0,0,14), Position=UDim2.new(0,0,0,2),
-        BackgroundTransparency=1, Text="DODGE THE BLOCKS  •  use arrow keys / WASD / touch",
-        TextColor3=T.TextM, TextSize=9, Font=Enum.Font.Gotham,
+        BackgroundTransparency=1,
+        Text="🎮  DODGE  —  Arrow keys / WASD / touch drag",
+        TextColor3=T.TextS, TextSize=9, Font=Enum.Font.Gotham,
         TextXAlignment=Enum.TextXAlignment.Center, ZIndex=108,
     }, gameArea)
 
-    -- Player paddle
-    local PLAYER_W, PLAYER_H = 44, 12
+    local PLAYER_W, PLAYER_H = 52, 11
+    local playerPxX = (GAME_W - PLAYER_W) / 2   -- pixel X of paddle left edge
     local player = New("Frame", {
         Size=UDim2.new(0,PLAYER_W,0,PLAYER_H),
-        Position=UDim2.new(0.5,-PLAYER_W/2,1,-PLAYER_H-6),
-        BackgroundColor3=T.AccB, BorderSizePixel=0, ZIndex=108,
+        Position=UDim2.new(0,playerPxX,0,GAME_H-PLAYER_H-6),
+        BackgroundColor3=T.AccB, BorderSizePixel=0, ZIndex=109,
     }, gameArea)
     Round(player, 5)
-    Stroke(player, T.Acc, 1, 0.2)
+    -- Glow outline on paddle
+    local playerStroke = Instance.new("UIStroke")
+    playerStroke.Color = T.Acc; playerStroke.Thickness=1.5; playerStroke.Transparency=0.2
+    playerStroke.Parent = player
 
     local scoreLabel = New("TextLabel", {
-        Size=UDim2.new(0,60,0,14), Position=UDim2.new(1,-64,0,2),
+        Size=UDim2.new(0,70,0,14), Position=UDim2.new(1,-74,0,2),
         BackgroundTransparency=1, Text="0 pts",
         TextColor3=T.TextA, TextSize=9, Font=Enum.Font.GothamBold,
         TextXAlignment=Enum.TextXAlignment.Right, ZIndex=108,
     }, gameArea)
 
-    local gameScore = 0
-    local playerX = 0.5   -- 0..1 normalized
-    local PLAYER_SPEED = 1.8
-    local gameActive = true
-    local blocks = {}
+    local gameScore   = 0
+    local gameActive  = true
+    local blocks      = {}
+    local spawnTimer  = 0
+    local spawnInterval = 0.85
+    local PLAYER_SPEED  = 200   -- px/s
 
     local function SpawnBlock()
         if not gameActive then return end
-        local bw = math.random(24, 56)
-        local bx = math.random(4, math.max(5, (CW-48) - bw - 4))
+        local bw  = math.random(28, 60)
+        local bx  = math.random(2, math.max(3, GAME_W - bw - 2))
         local blk = New("Frame", {
             Size=UDim2.new(0,bw,0,10),
-            Position=UDim2.new(0,bx,0,-12),
-            BackgroundColor3=T.Err, BackgroundTransparency=0.25,
+            Position=UDim2.new(0,bx,0,-14),
+            BackgroundColor3=T.Err,
+            BackgroundTransparency=0.15,
             BorderSizePixel=0, ZIndex=108,
         }, gameArea)
-        Round(blk, 3)
-        Stroke(blk, Color3.fromRGB(255,100,100), 1, 0.4)
-        table.insert(blocks, {frame=blk, x=bx, y=-12, w=bw})
+        Round(blk, 4)
+        local bs = Instance.new("UIStroke")
+        bs.Color=Color3.fromRGB(255,120,120); bs.Thickness=1; bs.Transparency=0.3
+        bs.Parent=blk
+        table.insert(blocks, {frame=blk, x=bx, y=-14, w=bw})
     end
 
-    -- Touch drag for player
-    local touchActive = false
-    local touchStartX = 0
-    local touchPlayerStart = 0
+    -- Touch drag
+    local touchActive, touchStartX, touchStartPx = false, 0, 0
     gameArea.InputBegan:Connect(function(inp)
         if inp.UserInputType == Enum.UserInputType.Touch then
-            touchActive = true
-            touchStartX = inp.Position.X
-            touchPlayerStart = playerX
+            touchActive   = true
+            touchStartX   = inp.Position.X
+            touchStartPx  = playerPxX
         end
     end)
     gameArea.InputChanged:Connect(function(inp)
         if touchActive and inp.UserInputType == Enum.UserInputType.Touch then
-            local areaW = gameArea.AbsoluteSize.X
-            local dx = (inp.Position.X - touchStartX) / areaW
-            playerX = math.clamp(touchPlayerStart + dx, 0, 1 - PLAYER_W/areaW)
+            local dx = inp.Position.X - touchStartX
+            playerPxX = math.clamp(touchStartPx + dx, 0, GAME_W - PLAYER_W)
         end
     end)
     gameArea.InputEnded:Connect(function(inp)
         if inp.UserInputType == Enum.UserInputType.Touch then touchActive = false end
     end)
 
-    local spawnTimer = 0
-    local spawnInterval = 0.9
     local gameConn = RunService.RenderStepped:Connect(function(dt)
         if not gameActive then return end
-        local areaW = gameArea.AbsoluteSize.X
-        local areaH = gameArea.AbsoluteSize.Y
-        local pxPx  = playerX * (areaW - PLAYER_W)
 
-        -- Keyboard/WASD movement
+        -- Keyboard movement (pixel/s)
         if UserInputService:IsKeyDown(Enum.KeyCode.Left)  or UserInputService:IsKeyDown(Enum.KeyCode.A) then
-            playerX = math.clamp(playerX - PLAYER_SPEED * dt / areaW * PLAYER_W * 5, 0, 1)
+            playerPxX = math.clamp(playerPxX - PLAYER_SPEED * dt, 0, GAME_W - PLAYER_W)
         end
         if UserInputService:IsKeyDown(Enum.KeyCode.Right) or UserInputService:IsKeyDown(Enum.KeyCode.D) then
-            playerX = math.clamp(playerX + PLAYER_SPEED * dt / areaW * PLAYER_W * 5, 0, 1 - PLAYER_W/areaW)
+            playerPxX = math.clamp(playerPxX + PLAYER_SPEED * dt, 0, GAME_W - PLAYER_W)
         end
-        pxPx = playerX * (areaW - PLAYER_W)
-        player.Position = UDim2.new(0, pxPx, 1, -PLAYER_H-6)
+        player.Position = UDim2.new(0, playerPxX, 0, GAME_H - PLAYER_H - 6)
 
-        -- Spawn blocks
+        -- Spawn
         spawnTimer = spawnTimer + dt
         if spawnTimer >= spawnInterval then
-            spawnTimer = 0
-            spawnInterval = math.max(0.35, spawnInterval - 0.03)
+            spawnTimer   = 0
+            spawnInterval = math.max(0.3, spawnInterval - 0.025)
             SpawnBlock()
         end
 
-        -- Move blocks
-        local speed = 90 + gameScore * 1.2
+        -- Move + collide
+        local fallSpeed = 80 + gameScore * 1.5
+        local playerTop = GAME_H - PLAYER_H - 6
         local toRemove = {}
         for i, b in ipairs(blocks) do
-            b.y = b.y + speed * dt
+            b.y = b.y + fallSpeed * dt
             if b.frame and b.frame.Parent then
                 b.frame.Position = UDim2.new(0, b.x, 0, b.y)
             end
-            -- Hit bottom safely
-            if b.y > areaH then
+            if b.y > GAME_H + 2 then
+                -- escaped — point scored
                 gameScore = gameScore + 1
                 scoreLabel.Text = gameScore .. " pts"
-                if b.frame then b.frame:Destroy() end
+                pcall(function() b.frame:Destroy() end)
                 table.insert(toRemove, i)
-            end
-            -- Collision with player
-            local py = areaH - PLAYER_H - 6
-            if b.y + 10 >= py and b.y <= py + PLAYER_H then
-                if b.x + b.w >= pxPx and b.x <= pxPx + PLAYER_W then
-                    -- Hit! Flash player red
-                    Tween(player, {BackgroundColor3=T.Err}, 0.05)
-                    task.delay(0.15, function()
+            elseif b.y + 10 >= playerTop and b.y <= playerTop + PLAYER_H then
+                -- overlap X?
+                if b.x + b.w >= playerPxX and b.x <= playerPxX + PLAYER_W then
+                    -- Hit — flash red
+                    Tween(player, {BackgroundColor3=T.Err}, 0.04)
+                    task.delay(0.18, function()
                         if player and player.Parent then
-                            Tween(player, {BackgroundColor3=Qwenzy._T.AccB}, 0.15)
+                            Tween(player, {BackgroundColor3=T.AccB}, 0.18)
                         end
                     end)
-                    if b.frame then b.frame:Destroy() end
+                    pcall(function() b.frame:Destroy() end)
                     table.insert(toRemove, i)
                 end
             end
@@ -840,74 +771,57 @@ local function ShowLoading(title, subtitle, T)
         TextXAlignment=Enum.TextXAlignment.Center, ZIndex=105,
     }, card)
 
-    -- ── Real loading steps ────────────────────────────
+    -- ── Real loading steps ─────────────────────────────
     local steps = {
         { label="Connecting to services...",  pct=0.12, fn=function()
             pcall(function() game:GetService("Players").LocalPlayer:GetMouse() end)
         end},
-        { label="Fetching Lucide icons...",   pct=0.30, fn=function()
-            -- icon fetch already happened at module level; yield so it shows
-            task.wait(0.1)
-        end},
-        { label="Applying theme...",          pct=0.46, fn=function()
-            task.wait(0.05)
-        end},
-        { label="Building window...",         pct=0.62, fn=function()
-            task.wait(0.08)
-        end},
-        { label="Loading config...",          pct=0.76, fn=function()
-            pcall(function()
-                local cfg2 = ConfigManager.new("QwenzyUI","QwenzyConfig")
-                cfg2:Load()
-            end)
+        { label="Fetching icons...",          pct=0.28, fn=function() task.wait(0.08) end},
+        { label="Applying glass theme...",    pct=0.44, fn=function() task.wait(0.06) end},
+        { label="Building window...",         pct=0.60, fn=function() task.wait(0.06) end},
+        { label="Loading saved config...",    pct=0.75, fn=function()
+            pcall(function() ConfigManager.new("QwenzyUI","QwenzyConfig"):Load() end)
         end},
         { label="Preloading assets...",       pct=0.88, fn=function()
             pcall(function()
-                game:GetService("ContentProvider"):PreloadAsync({
-                    "rbxassetid://6014261993",
-                })
+                game:GetService("ContentProvider"):PreloadAsync({"rbxassetid://6014261993"})
             end)
         end},
-        { label="Ready!",                     pct=1.00, fn=function()
-            task.wait(0.12)
-        end},
+        { label="Ready!",                     pct=1.00, fn=function() task.wait(0.1) end},
     }
 
     local function SetProgress(pct, label)
         statusLbl.Text = label
         hintLbl.Text   = label
-        Tween(barFill, {Size=UDim2.new(pct,0,1,0)}, 0.35, Enum.EasingStyle.Quart)
-        -- shimmer follows fill
-        task.delay(0.1, function()
+        Tween(barFill, {Size=UDim2.new(pct,0,1,0)}, 0.3, Enum.EasingStyle.Quart)
+        task.delay(0.05, function()
             if shimmer and shimmer.Parent then
-                Tween(shimmer, {Position=UDim2.new(1,-20,0,0)}, 0.25, Enum.EasingStyle.Sine)
-                task.delay(0.25, function()
-                    if shimmer and shimmer.Parent then
-                        shimmer.Position = UDim2.new(-0.2,0,0,0)
-                    end
-                end)
+                shimmer.Position = UDim2.new(-0.15,0,0,0)
+                Tween(shimmer, {Position=UDim2.new(1.1,0,0,0)}, 0.3, Enum.EasingStyle.Sine)
             end
         end)
     end
 
-    task.spawn(function()
-        -- minigame runs in background while main thread blocks below
-    end)
+    -- Wait one frame so the ScreenGui renders before we start the game loop
+    task.wait()
 
-    -- Run loading steps on current thread so CreateWindow blocks until done
+    -- Run steps on this thread (blocks here, game loop runs on RenderStepped)
     for _, step in ipairs(steps) do
         SetProgress(step.pct, step.label)
         pcall(step.fn)
-        task.wait(0.05)
+        task.wait(0.08)
     end
 
-    -- Done — stop minigame, show score, fade out
+    -- Done
     gameActive = false
     gameConn:Disconnect()
     pcall(function() orbitConn:Disconnect() end)
+    -- clean up remaining blocks
+    for _, b in ipairs(blocks) do pcall(function() b.frame:Destroy() end) end
+    blocks = {}
 
-    statusLbl.Text = "Score: " .. gameScore .. " pts  •  Nice!"
-    task.wait(0.5)
+    statusLbl.Text = "Score: " .. gameScore .. " pts — nice!"
+    task.wait(0.4)
 
     Tween(bg,   {BackgroundTransparency=1}, 0.4)
     Tween(card, {Position=UDim2.new(0.5,0,0.35,0), BackgroundTransparency=1}, 0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
@@ -922,8 +836,8 @@ function Qwenzy:CreateWindow(cfg)
     for _, w in ipairs(self._windows) do pcall(function() w:Destroy() end) end
     self._windows = {}
 
-    local T = (cfg.Theme and Themes[cfg.Theme]) or Themes.Default
-    self._T = T
+    -- T is the global glass theme
+    
 
     local conns = {}
     local function Track(c) table.insert(conns, c) return c end
@@ -1165,7 +1079,7 @@ function Qwenzy:CreateWindow(cfg)
             or inp.UserInputType == Enum.UserInputType.MouseButton1 then
                 if mDrag and not mMoved then
                     main.Visible = not main.Visible
-                    Tween(mBtn, {BackgroundColor3 = main.Visible and Qwenzy._T.Acc or Qwenzy._T.AccD}, 0.15)
+                    Tween(mBtn, {BackgroundColor3 = main.Visible and T.Acc or T.AccD}, 0.15)
                 end
                 mDrag = false
             end
@@ -1348,7 +1262,7 @@ function Qwenzy:CreateWindow(cfg)
 
         tabBtn.MouseEnter:Connect(function()
             if not IsMobile and self._activeTab ~= Tab then
-                Tween(tabBtn, {BackgroundTransparency=0.75, BackgroundColor3=Qwenzy._T.SurfaceH}, 0.15)
+                Tween(tabBtn, {BackgroundTransparency=0.75, BackgroundColor3=T.SurfaceH}, 0.15)
             end
         end)
         tabBtn.MouseLeave:Connect(function()
@@ -1400,26 +1314,26 @@ function Qwenzy:CreateWindow(cfg)
             local cs = rawget(c, "_qs")
             if not IsMobile then
                 hit.MouseEnter:Connect(function()
-                    Tween(c, {BackgroundColor3=Qwenzy._T.SurfaceH, BackgroundTransparency=0.12}, 0.15)
-                    if cs then Tween(cs, {Color=Qwenzy._T.Acc, Transparency=0.2}, 0.15) end
+                    Tween(c, {BackgroundColor3=T.SurfaceH, BackgroundTransparency=0.12}, 0.15)
+                    if cs then Tween(cs, {Color=T.Acc, Transparency=0.2}, 0.15) end
                 end)
                 hit.MouseLeave:Connect(function()
-                    Tween(c, {BackgroundColor3=Qwenzy._T.Surface, BackgroundTransparency=0.25}, 0.2)
-                    if cs then Tween(cs, {Color=Qwenzy._T.Border, Transparency=0.45}, 0.2) end
+                    Tween(c, {BackgroundColor3=T.Surface, BackgroundTransparency=0.25}, 0.2)
+                    if cs then Tween(cs, {Color=T.Border, Transparency=0.45}, 0.2) end
                 end)
             end
             if IsMobile then
                 hit.InputBegan:Connect(function(inp)
                     if inp.UserInputType == Enum.UserInputType.Touch then
-                        Tween(c, {BackgroundColor3=Qwenzy._T.SurfaceH, BackgroundTransparency=0.12}, 0.08)
-                        if cs then Tween(cs, {Color=Qwenzy._T.Acc, Transparency=0.2}, 0.08) end
+                        Tween(c, {BackgroundColor3=T.SurfaceH, BackgroundTransparency=0.12}, 0.08)
+                        if cs then Tween(cs, {Color=T.Acc, Transparency=0.2}, 0.08) end
                     end
                 end)
                 hit.InputEnded:Connect(function(inp)
                     if inp.UserInputType == Enum.UserInputType.Touch then
                         task.delay(0.15, function()
-                            Tween(c, {BackgroundColor3=Qwenzy._T.Surface, BackgroundTransparency=0.25}, 0.15)
-                            if cs then Tween(cs, {Color=Qwenzy._T.Border, Transparency=0.45}, 0.15) end
+                            Tween(c, {BackgroundColor3=T.Surface, BackgroundTransparency=0.25}, 0.15)
+                            if cs then Tween(cs, {Color=T.Border, Transparency=0.45}, 0.15) end
                         end)
                     end
                 end)
@@ -1580,7 +1494,7 @@ function Qwenzy:CreateWindow(cfg)
             end)
             local function fireCallback()
                 Tween(ico, {ImageColor3=Color3.fromRGB(255,255,255)}, 0.06)
-                task.delay(0.06, function() Tween(ico, {ImageColor3=Qwenzy._T.AccB}, 0.25) end)
+                task.delay(0.06, function() Tween(ico, {ImageColor3=T.AccB}, 0.25) end)
                 if cfg_.Callback then task.spawn(cfg_.Callback) end
             end
             hit.MouseButton1Click:Connect(fireCallback)
@@ -1627,8 +1541,8 @@ function Qwenzy:CreateWindow(cfg)
             local function doToggle()
                 Ripple(c, val and T.TOn or T.AccB)
                 val = not val
-                Tween(track, {BackgroundColor3=val and Qwenzy._T.TOn or Qwenzy._T.TOff, BackgroundTransparency=val and 0.3 or 0.6}, 0.22)
-                Tween(trackStroke, {Color=val and Qwenzy._T.TOn or Qwenzy._T.Border, Transparency=val and 0.2 or 0.55}, 0.22)
+                Tween(track, {BackgroundColor3=val and T.TOn or T.TOff, BackgroundTransparency=val and 0.3 or 0.6}, 0.22)
+                Tween(trackStroke, {Color=val and T.TOn or T.Border, Transparency=val and 0.2 or 0.55}, 0.22)
                 Tween(knob, {Position=val and UDim2.new(0,23,0.5,0) or UDim2.new(0,3,0.5,0)}, 0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
                 Tween(knob, {Size=UDim2.new(0,22,0,18)}, 0.08)
                 task.delay(0.08, function() Tween(knob, {Size=UDim2.new(0,20,0,20)}, 0.12, Enum.EasingStyle.Back) end)
@@ -1641,8 +1555,8 @@ function Qwenzy:CreateWindow(cfg)
             local o = {CurrentValue=val}
             function o:Set(v)
                 val=v; o.CurrentValue=v
-                Tween(track, {BackgroundColor3=v and Qwenzy._T.TOn or Qwenzy._T.TOff, BackgroundTransparency=v and 0.3 or 0.6}, 0.22)
-                Tween(trackStroke, {Color=v and Qwenzy._T.TOn or Qwenzy._T.Border, Transparency=v and 0.2 or 0.55}, 0.22)
+                Tween(track, {BackgroundColor3=v and T.TOn or T.TOff, BackgroundTransparency=v and 0.3 or 0.6}, 0.22)
+                Tween(trackStroke, {Color=v and T.TOn or T.Border, Transparency=v and 0.2 or 0.55}, 0.22)
                 Tween(knob, {Position=v and UDim2.new(0,23,0.5,0) or UDim2.new(0,3,0.5,0)}, 0.25)
                 Tween(knobStroke, {Transparency=v and 0.3 or 1}, 0.22)
                 Qwenzy.Flags[cfg_.Flag or ""] = v
@@ -1784,12 +1698,12 @@ function Qwenzy:CreateWindow(cfg)
                 ClearTextOnFocus=false, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=4,
             }, ibg)
             ibox.Focused:Connect(function()
-                Tween(ibg, {BackgroundColor3=Qwenzy._T.SurfaceH}, 0.15)
-                Tween(ibStroke, {Color=Qwenzy._T.Acc, Transparency=0.2}, 0.15)
+                Tween(ibg, {BackgroundColor3=T.SurfaceH}, 0.15)
+                Tween(ibStroke, {Color=T.Acc, Transparency=0.2}, 0.15)
             end)
             ibox.FocusLost:Connect(function()
-                Tween(ibg, {BackgroundColor3=Qwenzy._T.BGS}, 0.15)
-                Tween(ibStroke, {Color=Qwenzy._T.Border, Transparency=0.45}, 0.15)
+                Tween(ibg, {BackgroundColor3=T.BGS}, 0.15)
+                Tween(ibStroke, {Color=T.Border, Transparency=0.45}, 0.15)
                 local txt = ibox.Text
                 if cfg_.RemoveTextAfterFocusLost then ibox.Text="" end
                 Qwenzy.Flags[cfg_.Flag or ""] = txt
@@ -2108,10 +2022,10 @@ function Qwenzy:CreateWindow(cfg)
                     itemRefs[opt] = {item=item, lbl=ilbl, chk=ichk}
 
                     item.MouseEnter:Connect(function()
-                        if not IsMobile and not selected[opt] then Tween(item,{BackgroundColor3=Qwenzy._T.SurfaceH},0.1) end
+                        if not IsMobile and not selected[opt] then Tween(item,{BackgroundColor3=T.SurfaceH},0.1) end
                     end)
                     item.MouseLeave:Connect(function()
-                        if not IsMobile and not selected[opt] then Tween(item,{BackgroundColor3=Qwenzy._T.Surface},0.1) end
+                        if not IsMobile and not selected[opt] then Tween(item,{BackgroundColor3=T.Surface},0.1) end
                     end)
                     item.MouseButton1Click:Connect(function()
                         Ripple(item)
@@ -2123,9 +2037,9 @@ function Qwenzy:CreateWindow(cfg)
                         end
                         for o2, refs in pairs(itemRefs) do
                             local s = selected[o2]==true
-                            Tween(refs.item,{BackgroundColor3=s and Qwenzy._T.SurfaceH or Qwenzy._T.Surface},0.12)
+                            Tween(refs.item,{BackgroundColor3=s and T.SurfaceH or T.Surface},0.12)
                             Tween(refs.chk,{BackgroundTransparency=s and 0 or 1},0.12)
-                            refs.lbl.TextColor3 = s and Qwenzy._T.TextA or Qwenzy._T.TextP
+                            refs.lbl.TextColor3 = s and T.TextA or T.TextP
                             refs.lbl.Font = s and Enum.Font.GothamBold or Enum.Font.Gotham
                         end
                         UpdateDisplay()
@@ -2184,9 +2098,9 @@ function Qwenzy:CreateWindow(cfg)
                 o.CurrentOption=newSel; UpdateDisplay()
                 for _, refs in pairs(itemRefs) do
                     local s = selected[refs.lbl.Text]==true
-                    refs.item.BackgroundColor3 = s and Qwenzy._T.SurfaceH or Qwenzy._T.Surface
+                    refs.item.BackgroundColor3 = s and T.SurfaceH or T.Surface
                     refs.chk.BackgroundTransparency = s and 0 or 1
-                    refs.lbl.TextColor3 = s and Qwenzy._T.TextA or Qwenzy._T.TextP
+                    refs.lbl.TextColor3 = s and T.TextA or T.TextP
                     refs.lbl.Font = s and Enum.Font.GothamBold or Enum.Font.Gotham
                 end
                 local res={}
@@ -2266,9 +2180,9 @@ function Qwenzy:CreateWindow(cfg)
                 StopPulse()
                 curKey = newKey
                 badge.Text = newKey == "None" and "None" or newKey
-                badge.TextColor3 = newKey == "None" and Qwenzy._T.TextM or Qwenzy._T.TextA
-                Tween(badge, {BackgroundColor3=Qwenzy._T.BGS}, 0.15)
-                Tween(badgeStroke, {Color=Qwenzy._T.Border, Transparency=0.4}, 0.15)
+                badge.TextColor3 = newKey == "None" and T.TextM or T.TextA
+                Tween(badge, {BackgroundColor3=T.BGS}, 0.15)
+                Tween(badgeStroke, {Color=T.Border, Transparency=0.4}, 0.15)
                 hintLbl.Text = ""
                 Qwenzy.Flags[cfg_.Flag or ""] = newKey
                 Ripple(badge)
@@ -2280,9 +2194,9 @@ function Qwenzy:CreateWindow(cfg)
                     listening = false
                     StopPulse()
                     badge.Text = curKey == "None" and "None" or curKey
-                    badge.TextColor3 = curKey == "None" and Qwenzy._T.TextM or Qwenzy._T.TextA
-                    Tween(badge, {BackgroundColor3=Qwenzy._T.BGS}, 0.15)
-                    Tween(badgeStroke, {Color=Qwenzy._T.Border, Transparency=0.4}, 0.15)
+                    badge.TextColor3 = curKey == "None" and T.TextM or T.TextA
+                    Tween(badge, {BackgroundColor3=T.BGS}, 0.15)
+                    Tween(badgeStroke, {Color=T.Border, Transparency=0.4}, 0.15)
                     hintLbl.Text = ""
                     return
                 end
@@ -2320,9 +2234,9 @@ function Qwenzy:CreateWindow(cfg)
                             listening = false
                             StopPulse()
                             badge.Text = curKey == "None" and "None" or curKey
-                            badge.TextColor3 = curKey == "None" and Qwenzy._T.TextM or Qwenzy._T.TextA
-                            Tween(badge, {BackgroundColor3=Qwenzy._T.BGS}, 0.15)
-                            Tween(badgeStroke, {Color=Qwenzy._T.Border, Transparency=0.4}, 0.15)
+                            badge.TextColor3 = curKey == "None" and T.TextM or T.TextA
+                            Tween(badge, {BackgroundColor3=T.BGS}, 0.15)
+                            Tween(badgeStroke, {Color=T.Border, Transparency=0.4}, 0.15)
                             hintLbl.Text = ""
                         else
                             CommitKey(inp.KeyCode.Name)
@@ -2350,7 +2264,7 @@ function Qwenzy:CreateWindow(cfg)
             function o:Set(k)
                 curKey = k
                 badge.Text = k == "None" and "None" or k
-                badge.TextColor3 = k == "None" and Qwenzy._T.TextM or Qwenzy._T.TextA
+                badge.TextColor3 = k == "None" and T.TextM or T.TextA
                 o.CurrentKeybind = k
                 Qwenzy.Flags[cfg_.Flag or ""] = k
             end
@@ -2385,122 +2299,9 @@ function Qwenzy:Destroy()
 end
 
 -- ===================================================
---  PERSISTENT CONFIG & THEME HELPERS
+--  PERSISTENT CONFIG
 -- ===================================================
 local _Cfg = ConfigManager.new("QwenzyUI", "QwenzyConfig")
-
-local _CustomThemes = {}
-pcall(function()
-    local saved = _Cfg:Get("CustomThemes", {})
-    for name, data in pairs(saved) do
-        local T = {}
-        for k, v in pairs(data) do
-            if type(v)=="table" and #v==3 then
-                T[k] = Color3.fromRGB(v[1],v[2],v[3])
-            end
-        end
-        if T.BG and T.Acc then
-            Themes[name] = T
-            _CustomThemes[name] = true
-        end
-    end
-end)
-
-local function _C3S(c) return {math.floor(c.R*255),math.floor(c.G*255),math.floor(c.B*255)} end
-
-local _activeThemeName = "Default"
-
-function Qwenzy:ApplyTheme(newName)
-    local newT = Themes[newName]
-    if not newT then return end
-    local oldT = Themes[_activeThemeName] or Themes.Default
-    _activeThemeName = newName
-    self._T = newT
-    pcall(function() _Cfg:Set("ActiveTheme", newName) end)
-
-    local colorMap = {}
-    for key, oldC in pairs(oldT) do
-        local newC = newT[key]
-        if newC then
-            local k = string.format("%d_%d_%d",
-                math.floor(oldC.R*255), math.floor(oldC.G*255), math.floor(oldC.B*255))
-            colorMap[k] = newC
-        end
-    end
-    local function swap(c)
-        if not c then return nil end
-        local k = string.format("%d_%d_%d",
-            math.floor(c.R*255), math.floor(c.G*255), math.floor(c.B*255))
-        return colorMap[k]
-    end
-
-    for _, win in ipairs(self._windows) do
-        pcall(function()
-            if not win._sg or not win._sg.Parent then return end
-            local function walk(inst)
-                pcall(function()
-                    local cls = inst.ClassName
-                    if cls=="Frame" or cls=="ScrollingFrame" or cls=="TextButton" or cls=="TextBox" then
-                        local nc = swap(inst.BackgroundColor3)
-                        if nc and inst.BackgroundTransparency < 0.98 then
-                            Tween(inst,{BackgroundColor3=nc},0.3)
-                        end
-                    end
-                    if cls=="TextLabel" or cls=="TextButton" or cls=="TextBox" then
-                        local nc = swap(inst.TextColor3)
-                        if nc then Tween(inst,{TextColor3=nc},0.3) end
-                    end
-                    if cls=="ImageLabel" or cls=="ImageButton" then
-                        local nc = swap(inst.ImageColor3)
-                        if nc then Tween(inst,{ImageColor3=nc},0.3) end
-                    end
-                    if cls=="UIStroke" then
-                        local nc = swap(inst.Color)
-                        if nc then Tween(inst,{Color=nc},0.3) end
-                    end
-                    if cls=="UIGradient" then
-                        local ks = inst.Color.Keypoints
-                        local changed, newKs = false, {}
-                        for _, kp in ipairs(ks) do
-                            local nc = swap(kp.Value)
-                            if nc then changed=true end
-                            table.insert(newKs, ColorSequenceKeypoint.new(kp.Time, nc or kp.Value))
-                        end
-                        if changed then inst.Color = ColorSequence.new(newKs) end
-                    end
-                end)
-                for _, child in ipairs(inst:GetChildren()) do walk(child) end
-            end
-            walk(win._sg)
-        end)
-    end
-end
-
-function Qwenzy:SaveTheme(name, themeTable)
-    local saved = _Cfg:Get("CustomThemes", {})
-    local s = {}
-    for k,v in pairs(themeTable) do s[k]=_C3S(v) end
-    saved[name] = s
-    _Cfg:Set("CustomThemes", saved)
-    Themes[name] = themeTable
-    _CustomThemes[name] = true
-end
-
-function Qwenzy:DeleteTheme(name)
-    if not _CustomThemes[name] then return end
-    local saved = _Cfg:Get("CustomThemes", {})
-    saved[name]=nil; _Cfg:Set("CustomThemes",saved)
-    Themes[name]=nil; _CustomThemes[name]=nil
-end
-
-function Qwenzy:GetThemeNames()
-    local names = {}
-    for _,v in ipairs({"Default","Midnight","Rose","Emerald","Neon","Sunset","Ocean","Void","Arctic"}) do
-        table.insert(names, v)
-    end
-    for k in pairs(_CustomThemes) do table.insert(names, k) end
-    return names
-end
 
 function Qwenzy:SaveConfig(slotName)
     local slots = _Cfg:Get("ConfigSlots", {})
@@ -2535,12 +2336,6 @@ function Qwenzy:GetConfigSlots()
 end
 
 function Qwenzy:GetConfig() return _Cfg end
-
-local _savedTheme = _Cfg:Get("ActiveTheme", "Default")
-if Themes[_savedTheme] then
-    _activeThemeName = _savedTheme
-    Qwenzy._T = Themes[_savedTheme]
-end
 
 -- ===================================================
 --  RETURN MODULE
