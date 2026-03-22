@@ -307,71 +307,28 @@ end
 -- These functions only exist in exploit executors.
 -- We wrap them so the library never errors in Studio
 -- or environments where they're absent.
--- Safe wrappers: use rawget on _G so referencing missing globals never throws
-local function _safeget(name)
-    return rawget(getfenv and getfenv(0) or _G, name)
-end
-local _isfolder   = _safeget("isfolder")   or function() return false end
-local _isfile     = _safeget("isfile")     or function() return false end
-local _readfile   = _safeget("readfile")   or function() return "" end
-local _writefile  = _safeget("writefile")  or function() end
-local _makefolder = _safeget("makefolder") or function() end
+-- No executor filesystem functions used - pure Roblox API only
 local _HttpGet = function(url)
     local ok, res = pcall(function() return game:HttpGet(url) end)
     return ok and res or ""
 end
 
 -- ═══════════════════════════════════════════════════
---  CONFIG SAVING
+--  CONFIG SAVING (in-memory only, no filesystem)
 -- ═══════════════════════════════════════════════════
 local ConfigManager = {}
 ConfigManager.__index = ConfigManager
 
-function ConfigManager.new(folderName, fileName)
-    local self = setmetatable({}, ConfigManager)
-    self.Folder   = folderName or "NexusUI"
-    self.FileName = (fileName or "Config") .. ".json"
-    self.Data     = {}
-    self:Load()
-    return self
+function ConfigManager.new()
+    return setmetatable({ Data = {} }, ConfigManager)
 end
-
-function ConfigManager:Load()
-    local ok, data = pcall(function()
-        if not _isfolder(self.Folder) then
-            _makefolder(self.Folder)
-        end
-        local path = self.Folder .. "/" .. self.FileName
-        if _isfile(path) then
-            local content = _readfile(path)
-            if content and content ~= "" then
-                return HttpService:JSONDecode(content)
-            end
-        end
-        return {}
-    end)
-    self.Data = (ok and type(data) == "table" and data) or {}
-end
-
-function ConfigManager:Save()
-    pcall(function()
-        if not _isfolder(self.Folder) then
-            _makefolder(self.Folder)
-        end
-        _writefile(
-            self.Folder .. "/" .. self.FileName,
-            HttpService:JSONEncode(self.Data)
-        )
-    end)
-end
-
+function ConfigManager:Load() end
+function ConfigManager:Save() end
 function ConfigManager:Get(flag, default)
     return self.Data[flag] ~= nil and self.Data[flag] or default
 end
-
 function ConfigManager:Set(flag, value)
     self.Data[flag] = value
-    self:Save()
 end
 
 -- ═══════════════════════════════════════════════════
@@ -716,17 +673,7 @@ local function ShowKeySystem(settings, theme, onSuccess, onFail)
 
     -- Save key check
     local savedKey = nil
-    pcall(function()
-        if settings.SaveKey then
-            local fname = (settings.FileName or "NexusKey") .. ".txt"
-            if _isfile(fname) then
-                local content = _readfile(fname)
-                if content and content ~= "" then
-                    savedKey = content:gsub("%s+", "")
-                end
-            end
-        end
-    end)
+    -- Key saving requires executor filesystem; skipped for compatibility
 
     local function ValidateKey(key)
         local keys = settings.Key or {}
@@ -748,11 +695,7 @@ local function ShowKeySystem(settings, theme, onSuccess, onFail)
 
     local function TryKey(key)
         if ValidateKey(key) then
-            if settings.SaveKey then
-                pcall(function()
-                    _writefile((settings.FileName or "NexusKey") .. ".txt", key)
-                end)
-            end
+            -- (key saving requires executor filesystem, skipped)
             Tween(card, {BackgroundTransparency=1}, 0.3)
             Tween(backdrop, {BackgroundTransparency=1}, 0.3)
             task.wait(0.3)
@@ -2472,17 +2415,7 @@ function Nexus:CreateWindow(config)
     -- ── Key System gating ───────────────────────
     if config.KeySystem then
         local saved = nil
-        if config.KeySettings and config.KeySettings.SaveKey then
-            pcall(function()
-                local fname = (config.KeySettings.FileName or "NexusKey") .. ".txt"
-                if _isfile(fname) then
-                    local content = _readfile(fname)
-                    if content and content ~= "" then
-                        saved = content:gsub("%s+","")
-                    end
-                end
-            end)
-        end
+        -- (key file loading requires executor filesystem, skipped)
 
         -- Validate saved key
         local autoPass = false
