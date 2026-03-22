@@ -422,13 +422,16 @@ function Qwenzy:CreateWindow(cfg)
     local vp = workspace.CurrentCamera.ViewportSize
     local isMobile = vp.X < 600
 
-    -- Window is % of screen: desktop=30% wide, mobile=50% wide
-    local WIN_SW  = isMobile and 0.50 or 0.30
-    local WIN_SH  = isMobile and 0.72 or 0.62
+    -- Window as % of screen
+    local WIN_SW  = isMobile and 0.55 or 0.30
+    local WIN_SH  = isMobile and 0.78 or 0.46
     local WIN_W   = math.floor(vp.X * WIN_SW)
     local WIN_H   = math.floor(vp.Y * WIN_SH)
-    local TOP_H   = math.floor(WIN_H * 0.10)
-    local SIDE_W  = math.floor(WIN_W * (isMobile and 0.20 or 0.26))
+    -- All internal layout in scale (0-1 relative to window)
+    local TOP_S   = 0.09   -- topbar as fraction of WIN_H
+    local SIDE_S  = isMobile and 0.18 or 0.25  -- sidebar as fraction of WIN_W
+    local TOP_H   = math.floor(WIN_H * TOP_S)
+    local SIDE_W  = math.floor(WIN_W * SIDE_S)
 
     local sg = New("ScreenGui", {
         Name="QwenzyUI_Window", ResetOnSpawn=false,
@@ -447,11 +450,12 @@ function Qwenzy:CreateWindow(cfg)
 
     -- ---- TOPBAR ----
     local topbar = New("Frame", {
-        Size=UDim2.new(1,0,0,TOP_H),
+        Size=UDim2.new(1,0,TOP_S,0),
         BackgroundColor3=T.Top, BorderSizePixel=0, ZIndex=3,
     }, main)
     -- Bottom border glow
-    New("Frame", {Size=UDim2.new(1,0,0,1), Position=UDim2.new(0,0,1,-1),
+    New("Frame", {Size=UDim2.new(1,0,0,1), Position=UDim2.new(0,0,1,0),
+        AnchorPoint=Vector2.new(0,1),
         BackgroundColor3=T.Acc, BackgroundTransparency=0.82, BorderSizePixel=0, ZIndex=4}, topbar)
 
     -- Icon + title
@@ -475,8 +479,9 @@ function Qwenzy:CreateWindow(cfg)
 
     -- Topbar control buttons
     local function TopBtn(icon, xOff, icCol)
+        local btnSz = math.floor(TOP_H * 0.62)
         local btn = New("TextButton", {
-            Size=UDim2.new(0,26,0,26), Position=UDim2.new(1,xOff,0.5,0),
+            Size=UDim2.new(0,btnSz,0,btnSz), Position=UDim2.new(1,xOff,0.5,0),
             AnchorPoint=Vector2.new(1,0.5), BackgroundColor3=T.SurfaceH,
             BackgroundTransparency=0.55, BorderSizePixel=0,
             Text="", AutoButtonColor=false, ZIndex=5,
@@ -544,7 +549,7 @@ function Qwenzy:CreateWindow(cfg)
             minimized = false
         else
             prevSize = main.Size
-            Tween(main, {Size=UDim2.new(0,WIN_W,0,TOP_H)}, 0.2, Enum.EasingStyle.Quart)
+            Tween(main, {Size=UDim2.new(0,WIN_W,0,math.floor(WIN_H*TOP_S))}, 0.2, Enum.EasingStyle.Quart)
             minimized = true
         end
     end)
@@ -640,17 +645,18 @@ function Qwenzy:CreateWindow(cfg)
 
     -- ---- SIDEBAR ----
     local sidebar = New("Frame", {
-        Size=UDim2.new(0,SIDE_W,1,-TOP_H),
-        Position=UDim2.new(0,0,0,TOP_H),
+        Size=UDim2.new(SIDE_S,0,1-TOP_S,0),
+        Position=UDim2.new(0,0,TOP_S,0),
         BackgroundColor3=T.Tab, BorderSizePixel=0, ZIndex=2,
     }, main)
     New("Frame", {
-        Size=UDim2.new(0,1,1,0), Position=UDim2.new(1,-1,0,0),
+        Size=UDim2.new(0,1,1,0), Position=UDim2.new(1,0,0,0),
+        AnchorPoint=Vector2.new(1,0),
         BackgroundColor3=T.Border, BackgroundTransparency=0.3, BorderSizePixel=0, ZIndex=3,
     }, sidebar)
 
     local tabScroll = New("ScrollingFrame", {
-        Size=UDim2.new(1,0,1,-16), BackgroundTransparency=1,
+        Size=UDim2.new(1,0,1,0), BackgroundTransparency=1,
         BorderSizePixel=0, ScrollBarThickness=0,
         CanvasSize=UDim2.new(0,0,0,0), AutomaticCanvasSize=Enum.AutomaticSize.Y,
         ZIndex=3,
@@ -669,7 +675,7 @@ function Qwenzy:CreateWindow(cfg)
 
     if not isMobile then
         New("TextLabel", {
-            Size=UDim2.new(1,0,0,14), Position=UDim2.new(0,0,1,-15),
+            Size=UDim2.new(1,0,0,0.04), Position=UDim2.new(0,0,0.96,0),
             BackgroundTransparency=1, Text="v"..Qwenzy.Version,
             TextColor3=T.TextM, TextSize=9, Font=Enum.Font.Gotham,
             TextXAlignment=Enum.TextXAlignment.Center, ZIndex=3,
@@ -678,8 +684,8 @@ function Qwenzy:CreateWindow(cfg)
 
     -- ---- CONTENT ----
     local content = New("Frame", {
-        Size=UDim2.new(1,-SIDE_W,1,-TOP_H),
-        Position=UDim2.new(0,SIDE_W,0,TOP_H),
+        Size=UDim2.new(1-SIDE_S,0,1-TOP_S,0),
+        Position=UDim2.new(SIDE_S,0,TOP_S,0),
         BackgroundTransparency=1, BorderSizePixel=0, ClipsDescendants=true,
     }, main)
 
@@ -701,10 +707,10 @@ function Qwenzy:CreateWindow(cfg)
         local isFirst = order == 1
         local mob    = isMobile
 
-        local TAB_H = mob and 38 or 38
+        local TAB_SH = 0.11  -- tab button as fraction of sidebar height
 
         local btn = New("TextButton", {
-            Size=UDim2.new(1,0,0,TAB_H),
+            Size=UDim2.new(1,0,TAB_SH,0),
             BackgroundColor3=isFirst and T.SurfaceH or T.Tab,
             BackgroundTransparency=isFirst and 0 or 1,
             BorderSizePixel=0, Text="", AutoButtonColor=false,
@@ -713,8 +719,8 @@ function Qwenzy:CreateWindow(cfg)
         Round(btn, 8)
 
         -- Active indicator: left bar on desktop, bottom dot on mobile
-        local indSize   = mob and UDim2.new(0.5,0,0,2)  or UDim2.new(0,2,0.55,0)
-        local indPos    = mob and UDim2.new(0.25,0,1,-3) or UDim2.new(0,0,0.225,0)
+        local indSize   = mob and UDim2.new(0.5,0,0,2)  or UDim2.new(0,2,0.5,0)
+        local indPos    = mob and UDim2.new(0.25,0,1,-2) or UDim2.new(0,0,0.25,0)
         local ind = New("Frame", {
             Size=indSize, Position=indPos,
             BackgroundColor3=T.Acc, BackgroundTransparency=isFirst and 0 or 1,
@@ -760,7 +766,8 @@ function Qwenzy:CreateWindow(cfg)
 
         -- Page (scrollable)
         local page = New("ScrollingFrame", {
-            Size=UDim2.new(1,0,1,0), BackgroundTransparency=1,
+            Size=UDim2.new(1,0,1,0), Position=UDim2.new(0,0,0,0),
+            BackgroundTransparency=1,
             BorderSizePixel=0, ScrollBarThickness=2,
             ScrollBarImageColor3=T.Acc, ScrollBarImageTransparency=0.4,
             CanvasSize=UDim2.new(0,0,0,0), AutomaticCanvasSize=Enum.AutomaticSize.Y,
@@ -823,10 +830,9 @@ function Qwenzy:CreateWindow(cfg)
         -- ==========================================
         local function N() Tab._n += 1; return Tab._n end
 
+        local CARD_S = (1 - TOP_S) * WIN_H / 420  -- content height scale factor
         local function Card(h, auto)
-            -- Scale card heights to window height so they always fit
-            local scale = WIN_H / 420
-            local ch = math.floor((h or 48) * math.min(scale, 1.0))
+            local ch = math.max(math.floor((h or 48) * CARD_S), 32)
             local c = New("Frame", {
                 Size=UDim2.new(1,0,0,ch),
                 BackgroundColor3=T.Surface, BorderSizePixel=0,
@@ -853,7 +859,7 @@ function Qwenzy:CreateWindow(cfg)
             return hit
         end
 
-        local TS = math.clamp(math.floor(WIN_H / 35), 10, 14)  -- text scale
+        local TS = math.clamp(math.floor(WIN_H * (1-TOP_S) / 32), 9, 13)  -- text scale
         local function NameLbl(c, txt)
             return New("TextLabel", {
                 Size=UDim2.new(1,-64,1,0), Position=UDim2.new(0,12,0,0),
@@ -867,7 +873,7 @@ function Qwenzy:CreateWindow(cfg)
         function Tab:CreateSection(name)
             Tab._n += 1
             local f = New("Frame", {
-                Size=UDim2.new(1,0,0,20), BackgroundTransparency=1,
+                Size=UDim2.new(1,0,0,math.floor(20*CARD_S)), BackgroundTransparency=1,
                 BorderSizePixel=0, LayoutOrder=Tab._n,
             }, page)
             New("Frame", {
