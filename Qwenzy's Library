@@ -1,4 +1,3 @@
-
 --[[
   ███╗   ██╗███████╗██╗  ██╗██╗   ██╗███████╗    ██╗   ██╗██╗
   ████╗  ██║██╔════╝╚██╗██╔╝██║   ██║██╔════╝    ██║   ██║██║
@@ -24,9 +23,21 @@ local Players           = game:GetService("Players")
 local RunService        = game:GetService("RunService")
 local TweenService      = game:GetService("TweenService")
 local UserInputService  = game:GetService("UserInputService")
-local CoreGui           = game:GetService("CoreGui")
 local HttpService       = game:GetService("HttpService")
 local TextService       = game:GetService("TextService")
+
+-- Safe CoreGui: some executors block writes to CoreGui, fall back to PlayerGui
+local CoreGui
+do
+    local _ok, _cg = pcall(function() return game:GetService("CoreGui") end)
+    CoreGui = (_ok and _cg) or Players.LocalPlayer:WaitForChild("PlayerGui")
+    local _testOk = pcall(function()
+        local _t = Instance.new("Folder"); _t.Parent = CoreGui; _t:Destroy()
+    end)
+    if not _testOk then
+        CoreGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+    end
+end
 
 local LocalPlayer  = Players.LocalPlayer
 local Mouse        = LocalPlayer:GetMouse()
@@ -291,6 +302,24 @@ local function GetIcon(id)
 end
 
 -- ═══════════════════════════════════════════════════
+--  EXECUTOR FUNCTION SAFETY WRAPPERS
+-- ═══════════════════════════════════════════════════
+-- These functions only exist in exploit executors.
+-- We wrap them so the library never errors in Studio
+-- or environments where they're absent.
+local _isfolder  = (typeof(isfolder)  == "function") and isfolder  or function() return false end
+local _isfile    = (typeof(isfile)    == "function") and isfile    or function() return false end
+local _readfile  = (typeof(readfile)  == "function") and readfile  or function() return "" end
+local _writefile = (typeof(writefile) == "function") and writefile or function() end
+local _makefolder= (typeof(makefolder)== "function") and makefolder or function() end
+local _HttpGet   = function(url)
+    local ok, res = pcall(function()
+        return game:HttpGet(url)
+    end)
+    return ok and res or ""
+end
+
+-- ═══════════════════════════════════════════════════
 --  CONFIG SAVING
 -- ═══════════════════════════════════════════════════
 local ConfigManager = {}
@@ -307,24 +336,27 @@ end
 
 function ConfigManager:Load()
     local ok, data = pcall(function()
-        if not isfolder(self.Folder) then
-            makefolder(self.Folder)
+        if not _isfolder(self.Folder) then
+            _makefolder(self.Folder)
         end
         local path = self.Folder .. "/" .. self.FileName
-        if isfile(path) then
-            return HttpService:JSONDecode(readfile(path))
+        if _isfile(path) then
+            local content = _readfile(path)
+            if content and content ~= "" then
+                return HttpService:JSONDecode(content)
+            end
         end
         return {}
     end)
-    self.Data = (ok and data) or {}
+    self.Data = (ok and type(data) == "table" and data) or {}
 end
 
 function ConfigManager:Save()
     pcall(function()
-        if not isfolder(self.Folder) then
-            makefolder(self.Folder)
+        if not _isfolder(self.Folder) then
+            _makefolder(self.Folder)
         end
-        writefile(
+        _writefile(
             self.Folder .. "/" .. self.FileName,
             HttpService:JSONEncode(self.Data)
         )
@@ -685,8 +717,11 @@ local function ShowKeySystem(settings, theme, onSuccess, onFail)
     pcall(function()
         if settings.SaveKey then
             local fname = (settings.FileName or "NexusKey") .. ".txt"
-            if isfile(fname) then
-                savedKey = readfile(fname):gsub("%s+", "")
+            if _isfile(fname) then
+                local content = _readfile(fname)
+                if content and content ~= "" then
+                    savedKey = content:gsub("%s+", "")
+                end
             end
         end
     end)
@@ -698,7 +733,7 @@ local function ShowKeySystem(settings, theme, onSuccess, onFail)
                 local rawKey = k
                 if settings.GrabKeyFromSite then
                     pcall(function()
-                        rawKey = game:HttpGet(k):gsub("%s+","")
+                        rawKey = _HttpGet(k):gsub("%s+","")
                     end)
                 end
                 if key == rawKey or key == k then
@@ -713,7 +748,7 @@ local function ShowKeySystem(settings, theme, onSuccess, onFail)
         if ValidateKey(key) then
             if settings.SaveKey then
                 pcall(function()
-                    writefile((settings.FileName or "NexusKey") .. ".txt", key)
+                    _writefile((settings.FileName or "NexusKey") .. ".txt", key)
                 end)
             end
             Tween(card, {BackgroundTransparency=1}, 0.3)
@@ -2438,8 +2473,11 @@ function Nexus:CreateWindow(config)
         if config.KeySettings and config.KeySettings.SaveKey then
             pcall(function()
                 local fname = (config.KeySettings.FileName or "NexusKey") .. ".txt"
-                if isfile(fname) then
-                    saved = readfile(fname):gsub("%s+","")
+                if _isfile(fname) then
+                    local content = _readfile(fname)
+                    if content and content ~= "" then
+                        saved = content:gsub("%s+","")
+                    end
                 end
             end)
         end
@@ -2451,7 +2489,7 @@ function Nexus:CreateWindow(config)
             for _, k in ipairs(ks.Key or {}) do
                 local rawKey = k
                 if ks.GrabKeyFromSite then
-                    pcall(function() rawKey = game:HttpGet(k):gsub("%s+","") end)
+                    pcall(function() rawKey = _HttpGet(k):gsub("%s+","") end)
                 end
                 if saved == rawKey or saved == k then
                     autoPass = true
@@ -2572,5 +2610,12 @@ Nexus:Notify({
     Image   = "bell",
 })
 --]]
+
+-- Final safety: expose a protected Notify for any load-time errors
+local _realNotify = Nexus.Notify
+Nexus.Notify = function(self, cfg)
+    local ok, err = pcall(_realNotify, self, cfg)
+    if not ok then warn('[NexusUI] Notify error:', err) end
+end
 
 return Nexus
