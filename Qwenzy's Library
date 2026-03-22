@@ -16,6 +16,10 @@
   Drop-in replacement with enhanced visuals & features.
 --]]
 
+-- NexusUI safe loader: wraps entire init so errors show exact line
+local _NexusOk, _NexusResult = xpcall(function()
+
+
 -- ═══════════════════════════════════════════════════
 --  SERVICES
 -- ═══════════════════════════════════════════════════
@@ -2546,11 +2550,37 @@ Nexus:Notify({
 })
 --]]
 
--- Final safety: expose a protected Notify for any load-time errors
-local _realNotify = Nexus.Notify
-Nexus.Notify = function(self, cfg)
-    local ok, err = pcall(_realNotify, self, cfg)
-    if not ok then warn('[NexusUI] Notify error:', err) end
-end
-
 return Nexus
+end, function(err)
+    -- Print the full traceback so you can see the exact line
+    local msg = tostring(err)
+    warn("[NexusUI FATAL] " .. msg)
+    -- Show an on-screen error label so it's visible in-game
+    pcall(function()
+        local sg = Instance.new("ScreenGui")
+        sg.Name = "NexusError"
+        sg.ResetOnSpawn = false
+        sg.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+        local f = Instance.new("Frame")
+        f.Size = UDim2.new(0,500,0,80)
+        f.Position = UDim2.new(0.5,-250,0,10)
+        f.BackgroundColor3 = Color3.fromRGB(30,0,0)
+        f.BorderSizePixel = 0
+        f.Parent = sg
+        local t = Instance.new("TextLabel")
+        t.Size = UDim2.new(1,-10,1,0)
+        t.Position = UDim2.new(0,5,0,0)
+        t.BackgroundTransparency = 1
+        t.Text = "[NexusUI] " .. msg
+        t.TextColor3 = Color3.fromRGB(255,100,100)
+        t.TextSize = 13
+        t.Font = Enum.Font.GothamBold
+        t.TextWrapped = true
+        t.TextXAlignment = Enum.TextXAlignment.Left
+        t.Parent = f
+        game:GetService("Debris"):AddItem(sg, 15)
+    end)
+    return nil
+end)
+
+return _NexusResult
