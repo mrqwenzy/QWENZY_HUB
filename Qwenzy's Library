@@ -422,11 +422,16 @@ function Qwenzy:CreateWindow(cfg)
     local vp = workspace.CurrentCamera.ViewportSize
     local isMobile = vp.X < 600
 
-    -- Layout constants
-    local WIN_W   = isMobile and math.min(vp.X - 10, 340) or 640
-    local WIN_H   = isMobile and math.min(vp.Y - 48, 440) or 420
-    local TOP_H   = isMobile and 38 or 44
-    local SIDE_W  = isMobile and 44 or 162
+    -- Scale-based layout
+    local WIN_SW  = isMobile and 0.94 or 0
+    local WIN_SH  = isMobile and 0.82 or 0
+    local WIN_OW  = isMobile and 0 or 640
+    local WIN_OH  = isMobile and 0 or 420
+    -- Derived pixel sizes for elements that need them (sidebar, topbar)
+    local WIN_W   = isMobile and vp.X * WIN_SW or WIN_OW
+    local WIN_H   = isMobile and vp.Y * WIN_SH or WIN_OH
+    local TOP_H   = isMobile and math.floor(vp.Y * 0.065) or 44
+    local SIDE_W  = isMobile and math.floor(vp.X * 0.115) or 162
 
     local sg = New("ScreenGui", {
         Name="QwenzyUI_Window", ResetOnSpawn=false,
@@ -435,8 +440,9 @@ function Qwenzy:CreateWindow(cfg)
 
     -- Main panel
     local main = New("Frame", {
-        Size=UDim2.new(0,WIN_W,0,0),
-        Position=UDim2.new(0,(vp.X-WIN_W)/2, 0,(vp.Y-WIN_H)/2),
+        Size=UDim2.new(WIN_SW, WIN_OW, 0, 0),
+        Position=isMobile and UDim2.new((1-WIN_SW)/2, 0, (1-WIN_SH)/2, 0)
+                          or UDim2.new(0,(vp.X-WIN_OW)/2, 0,(vp.Y-WIN_OH)/2),
         BackgroundColor3=T.BG, BorderSizePixel=0, ClipsDescendants=true,
     }, sg)
     Round(main, 12)
@@ -445,7 +451,7 @@ function Qwenzy:CreateWindow(cfg)
 
     -- ---- TOPBAR ----
     local topbar = New("Frame", {
-        Size=UDim2.new(1,0,0,TOP_H),
+        Size=isMobile and UDim2.new(1,0,0.08,0) or UDim2.new(1,0,0,TOP_H),
         BackgroundColor3=T.Top, BorderSizePixel=0, ZIndex=3,
     }, main)
     -- Bottom border glow
@@ -532,7 +538,7 @@ function Qwenzy:CreateWindow(cfg)
     local minimized, prevSize = false, nil
     closeBtn.MouseButton1Click:Connect(function()
         Ripple(closeBtn)
-        Tween(main, {Size=UDim2.new(0,WIN_W,0,0)}, 0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+        Tween(main, {Size=UDim2.new(WIN_SW,WIN_OW,0,0)}, 0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
         task.delay(0.2, function() pcall(function() sg:Destroy() end) end)
     end)
     minimBtn.MouseButton1Click:Connect(function()
@@ -542,7 +548,7 @@ function Qwenzy:CreateWindow(cfg)
             minimized = false
         else
             prevSize = main.Size
-            Tween(main, {Size=UDim2.new(0,WIN_W,0,TOP_H)}, 0.2, Enum.EasingStyle.Quart)
+            Tween(main, {Size=isMobile and UDim2.new(WIN_SW,0,0.08,0) or UDim2.new(0,WIN_W,0,TOP_H)}, 0.2, Enum.EasingStyle.Quart)
             minimized = true
         end
     end)
@@ -564,12 +570,16 @@ function Qwenzy:CreateWindow(cfg)
     -- ---- MOBILE TOGGLE BUTTON ----
     -- Floating pill at bottom-right, always on screen
     local fab = New("TextButton", {
-        Size=UDim2.new(0,40,0,40),
-        Position=UDim2.new(1,-50, 1,-52),
+        Size=UDim2.new(0.1,0,0,0),  -- will be sized below
+        Position=UDim2.new(0.88,0,0.88,0),
         BackgroundColor3=T.Acc,
         BorderSizePixel=0, Text="", AutoButtonColor=false, ZIndex=400,
     }, sg)
-    Round(fab, 22)
+    fab.Size = UDim2.new(0.095,0,0.064,0)  -- scale-based square-ish
+    local fabARC = Instance.new("UIAspectRatioConstraint")
+    fabARC.AspectRatio = 1
+    fabARC.Parent = fab
+    Round(fab, 999)
     Shadow(fab)
     Stroke(fab, T.AccB, 1, 0.6)
 
@@ -602,7 +612,7 @@ function Qwenzy:CreateWindow(cfg)
             if ap.X < 0 or ap.Y < 0 or ap.X+as.X > vp2.X or ap.Y+as.Y > vp2.Y then
                 Tween(main, {Position=UDim2.new(0,(vp2.X-as.X)/2,0,(vp2.Y-as.Y)/2)}, 0.3, Enum.EasingStyle.Back)
             end
-            Tween(main, {Size=UDim2.new(0,WIN_W,0,WIN_H)}, 0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+            Tween(main, {Size=UDim2.new(WIN_SW,WIN_OW,WIN_SH,WIN_OH)}, 0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
             minimized = false
         end
         -- Icon swap
@@ -638,7 +648,8 @@ function Qwenzy:CreateWindow(cfg)
 
     -- ---- SIDEBAR ----
     local sidebar = New("Frame", {
-        Size=UDim2.new(0,SIDE_W,1,-TOP_H), Position=UDim2.new(0,0,0,TOP_H),
+        Size=isMobile and UDim2.new(0.13,0,0.92,0) or UDim2.new(0,SIDE_W,1,-TOP_H),
+        Position=isMobile and UDim2.new(0,0,0.08,0) or UDim2.new(0,0,0,TOP_H),
         BackgroundColor3=T.Tab, BorderSizePixel=0, ZIndex=2,
     }, main)
     New("Frame", {
@@ -647,7 +658,7 @@ function Qwenzy:CreateWindow(cfg)
     }, sidebar)
 
     local tabScroll = New("ScrollingFrame", {
-        Size=UDim2.new(1,0,1,-16), BackgroundTransparency=1,
+        Size=UDim2.new(1,0,1,isMobile and 0 or -16), BackgroundTransparency=1,
         BorderSizePixel=0, ScrollBarThickness=0,
         CanvasSize=UDim2.new(0,0,0,0), AutomaticCanvasSize=Enum.AutomaticSize.Y,
         ZIndex=3,
@@ -675,7 +686,8 @@ function Qwenzy:CreateWindow(cfg)
 
     -- ---- CONTENT ----
     local content = New("Frame", {
-        Size=UDim2.new(1,-SIDE_W,1,-TOP_H), Position=UDim2.new(0,SIDE_W,0,TOP_H),
+        Size=isMobile and UDim2.new(0.87,0,0.92,0) or UDim2.new(1,-SIDE_W,1,-TOP_H),
+        Position=isMobile and UDim2.new(0.13,0,0.08,0) or UDim2.new(0,SIDE_W,0,TOP_H),
         BackgroundTransparency=1, BorderSizePixel=0, ClipsDescendants=true,
     }, main)
 
@@ -686,7 +698,7 @@ function Qwenzy:CreateWindow(cfg)
     table.insert(Qwenzy._windows, Window)
 
     -- Animate open
-    Tween(main, {Size=UDim2.new(0,WIN_W,0,WIN_H)}, 0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+    Tween(main, {Size=UDim2.new(WIN_SW,WIN_OW,WIN_SH,WIN_OH)}, 0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 
     -- =============================================
     --  CREATE TAB
@@ -820,9 +832,11 @@ function Qwenzy:CreateWindow(cfg)
         local function N() Tab._n += 1; return Tab._n end
 
         local function Card(h, auto)
-            local mh = isMobile and math.floor((h or 48)*0.82) or (h or 48)
+            local ch = h or 48
+            -- On mobile scale card height relative to screen height
+            if isMobile then ch = math.floor(ch * (vp.Y / 520)) end
             local c = New("Frame", {
-                Size=UDim2.new(1,0,0,mh),
+                Size=UDim2.new(1,0,0,ch),
                 BackgroundColor3=T.Surface, BorderSizePixel=0,
                 ZIndex=2, LayoutOrder=N(),
                 AutomaticSize=auto and Enum.AutomaticSize.Y or Enum.AutomaticSize.None,
@@ -1626,7 +1640,7 @@ function Qwenzy:CreateWindow(cfg)
     function Window:Destroy()
         for _, conn in ipairs(self._conns) do pcall(function() conn:Disconnect() end) end
         self._conns={}
-        Tween(self._main,{Size=UDim2.new(0,WIN_W,0,0)},0.2,Enum.EasingStyle.Quart,Enum.EasingDirection.In)
+        Tween(self._main,{Size=UDim2.new(WIN_SW,WIN_OW,0,0)},0.2,Enum.EasingStyle.Quart,Enum.EasingDirection.In)
         task.delay(0.2, function() pcall(function() self._sg:Destroy() end) end)
     end
 
