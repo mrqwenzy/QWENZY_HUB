@@ -35,7 +35,7 @@
     Tab:CreateDropdown({Name, Options, CurrentOption, MultipleOptions, Flag, Callback})
     Tab:CreateKeybind({Name, CurrentKeybind, Flag, Callback})
     
-    Qwenzy.Themes  -- table of all themes, add custom ones
+    -- (single glass theme, no theme system)
     Qwenzy:ApplyTheme(name)  -- live theme swap
     Qwenzy:GetConfig() -> ConfigManager
 ]]
@@ -368,7 +368,7 @@ Qwenzy.__index = Qwenzy
 Qwenzy.Flags = {}
 Qwenzy.Version = "3.0.0"
 Qwenzy._windows = {}
-T = Themes.Default
+
 
 -- ===================================================
 --  NOTIFICATION
