@@ -549,8 +549,7 @@ end
 -- ===================================================
 --  LOADING SCREEN  (minigame + real load steps)
 -- ===================================================
-local function ShowLoading(title, subtitle, T, onDone)
-    -- onDone() is called when loading finishes so CreateWindow can continue
+local function ShowLoading(title, subtitle, T)
 
     local sg = New("ScreenGui", {Name="QwenzyLoading", ResetOnSpawn=false,
         ZIndexBehavior=Enum.ZIndexBehavior.Sibling, IgnoreGuiInset=true,
@@ -892,26 +891,28 @@ local function ShowLoading(title, subtitle, T, onDone)
     end
 
     task.spawn(function()
-        for _, step in ipairs(steps) do
-            SetProgress(step.pct, step.label)
-            pcall(step.fn)
-            task.wait(0.05)
-        end
-
-        -- Done — stop minigame, show score, fade out
-        gameActive = false
-        gameConn:Disconnect()
-        pcall(function() orbitConn:Disconnect() end)
-
-        statusLbl.Text = "Score: " .. gameScore .. " pts  •  Nice!"
-        task.wait(0.5)
-
-        Tween(bg,   {BackgroundTransparency=1}, 0.4)
-        Tween(card, {Position=UDim2.new(0.5,0,0.35,0), BackgroundTransparency=1}, 0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
-        task.wait(0.4)
-        sg:Destroy()
-        if onDone then onDone() end
+        -- minigame runs in background while main thread blocks below
     end)
+
+    -- Run loading steps on current thread so CreateWindow blocks until done
+    for _, step in ipairs(steps) do
+        SetProgress(step.pct, step.label)
+        pcall(step.fn)
+        task.wait(0.05)
+    end
+
+    -- Done — stop minigame, show score, fade out
+    gameActive = false
+    gameConn:Disconnect()
+    pcall(function() orbitConn:Disconnect() end)
+
+    statusLbl.Text = "Score: " .. gameScore .. " pts  •  Nice!"
+    task.wait(0.5)
+
+    Tween(bg,   {BackgroundTransparency=1}, 0.4)
+    Tween(card, {Position=UDim2.new(0.5,0,0.35,0), BackgroundTransparency=1}, 0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+    task.wait(0.4)
+    sg:Destroy()
 end
 
 -- ===================================================
@@ -927,8 +928,9 @@ function Qwenzy:CreateWindow(cfg)
     local conns = {}
     local function Track(c) table.insert(conns, c) return c end
 
-    -- Everything past loading is built inside the callback so loading can actually run
-    local function BuildWindow()
+    -- Blocking: runs loading screen (with minigame) then returns here
+    ShowLoading(cfg.LoadingTitle, cfg.LoadingSubtitle, T)
+
     -- Main ScreenGui
     local sg = New("ScreenGui", {Name="QwenzyUI_Window", ResetOnSpawn=false,
         ZIndexBehavior=Enum.ZIndexBehavior.Sibling, IgnoreGuiInset=true}, ROOT)
@@ -2372,55 +2374,6 @@ function Qwenzy:CreateWindow(cfg)
     Tween(main, {Size=UDim2.new(0,WIN_W,0,WIN_H)}, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 
     return Window
-    end -- BuildWindow
-
-    -- Show loading screen; build window once it's done
-    ShowLoading(cfg.LoadingTitle, cfg.LoadingSubtitle, T, function()
-        task.spawn(BuildWindow)
-    end)
-
-    -- Return a proxy table so callers can call :CreateTab etc.
-    -- Methods queue up until BuildWindow actually runs (window ready)
-    local proxy = {}
-    local queue = {}
-    local windowReady = false
-    local realWindow = nil
-
-    local proxyMt = {}
-    proxyMt.__index = function(_, k)
-        return function(self, ...)
-            local args = {...}
-            if windowReady and realWindow then
-                if realWindow[k] then return realWindow[k](realWindow, table.unpack(args)) end
-            else
-                -- queue the call
-                table.insert(queue, {k=k, args=args})
-            end
-        end
-    end
-    setmetatable(proxy, proxyMt)
-
-    -- When BuildWindow finishes it patches realWindow; we intercept by wrapping
-    -- via the onDone callback already handled above, but we need a hook.
-    -- Simplest: poll until Window is in _windows, then drain queue.
-    task.spawn(function()
-        while true do
-            task.wait(0.05)
-            for _, w in ipairs(Qwenzy._windows) do
-                if w._sg then realWindow = w; break end
-            end
-            if realWindow then break end
-        end
-        windowReady = true
-        for _, call in ipairs(queue) do
-            if realWindow[call.k] then
-                pcall(function() realWindow[call.k](realWindow, table.unpack(call.args)) end)
-            end
-        end
-        queue = {}
-    end)
-
-    return proxy
 end -- CreateWindow
 
 function Qwenzy:SetVisibility(v)
