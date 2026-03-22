@@ -423,8 +423,8 @@ function Qwenzy:CreateWindow(cfg)
     local isMobile = vp.X < 600
 
     -- Window as % of screen
-    local WIN_SW  = isMobile and 0.55 or 0.30
-    local WIN_SH  = isMobile and 0.78 or 0.46
+    local WIN_SW  = isMobile and 0.88 or 0.30
+    local WIN_SH  = isMobile and 0.88 or 0.46
     local WIN_W   = math.floor(vp.X * WIN_SW)
     local WIN_H   = math.floor(vp.Y * WIN_SH)
     -- All internal layout in scale (0-1 relative to window)
@@ -504,8 +504,8 @@ function Qwenzy:CreateWindow(cfg)
         return btn
     end
 
-    local closeBtn = TopBtn("x",     -8,  T.Err)
-    local minimBtn = TopBtn("minus", -40, T.TextM)
+    local closeBtn = isMobile and TopBtn("x", -8, T.Err) or nil
+    local minimBtn = not isMobile and TopBtn("minus", -8, T.TextM) or nil
 
     -- Drag support (mouse + touch)
     local dragging, dX, dY = false, 0, 0
@@ -537,22 +537,26 @@ function Qwenzy:CreateWindow(cfg)
 
     -- Close / minimize
     local minimized, prevSize = false, nil
-    closeBtn.MouseButton1Click:Connect(function()
-        Ripple(closeBtn)
-        Tween(main, {Size=UDim2.new(0,WIN_W,0,0)}, 0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
-        task.delay(0.2, function() pcall(function() sg:Destroy() end) end)
-    end)
-    minimBtn.MouseButton1Click:Connect(function()
-        Ripple(minimBtn)
-        if minimized then
-            Tween(main, {Size=prevSize}, 0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-            minimized = false
-        else
-            prevSize = main.Size
-            Tween(main, {Size=UDim2.new(0,WIN_W,0,math.floor(WIN_H*TOP_S))}, 0.2, Enum.EasingStyle.Quart)
-            minimized = true
-        end
-    end)
+    if closeBtn then
+        closeBtn.MouseButton1Click:Connect(function()
+            Ripple(closeBtn)
+            Tween(main, {Size=UDim2.new(0,WIN_W,0,0)}, 0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+            task.delay(0.2, function() pcall(function() sg:Destroy() end) end)
+        end)
+    end
+    if minimBtn then
+        minimBtn.MouseButton1Click:Connect(function()
+            Ripple(minimBtn)
+            if minimized then
+                Tween(main, {Size=prevSize}, 0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+                minimized = false
+            else
+                prevSize = main.Size
+                Tween(main, {Size=UDim2.new(0,WIN_W,0,math.floor(WIN_H*TOP_S))}, 0.2, Enum.EasingStyle.Quart)
+                minimized = true
+            end
+        end)
+    end
 
     -- Keyboard toggle
     if cfg.ToggleUIKeybind then
