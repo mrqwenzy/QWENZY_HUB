@@ -307,15 +307,17 @@ end
 -- These functions only exist in exploit executors.
 -- We wrap them so the library never errors in Studio
 -- or environments where they're absent.
-local _isfolder  = (typeof(isfolder)  == "function") and isfolder  or function() return false end
-local _isfile    = (typeof(isfile)    == "function") and isfile    or function() return false end
-local _readfile  = (typeof(readfile)  == "function") and readfile  or function() return "" end
-local _writefile = (typeof(writefile) == "function") and writefile or function() end
-local _makefolder= (typeof(makefolder)== "function") and makefolder or function() end
-local _HttpGet   = function(url)
-    local ok, res = pcall(function()
-        return game:HttpGet(url)
-    end)
+-- Safe wrappers: use rawget on _G so referencing missing globals never throws
+local function _safeget(name)
+    return rawget(getfenv and getfenv(0) or _G, name)
+end
+local _isfolder   = _safeget("isfolder")   or function() return false end
+local _isfile     = _safeget("isfile")     or function() return false end
+local _readfile   = _safeget("readfile")   or function() return "" end
+local _writefile  = _safeget("writefile")  or function() end
+local _makefolder = _safeget("makefolder") or function() end
+local _HttpGet = function(url)
+    local ok, res = pcall(function() return game:HttpGet(url) end)
     return ok and res or ""
 end
 
