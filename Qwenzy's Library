@@ -1,28 +1,16 @@
 --[[
-  ███╗   ██╗███████╗██╗  ██╗██╗   ██╗███████╗    ██╗   ██╗██╗
-  ████╗  ██║██╔════╝╚██╗██╔╝██║   ██║██╔════╝    ██║   ██║██║
-  ██╔██╗ ██║█████╗   ╚███╔╝ ██║   ██║███████╗    ██║   ██║██║
-  ██║╚██╗██║██╔══╝   ██╔██╗ ██║   ██║╚════██║    ██║   ██║██║
-  ██║ ╚████║███████╗██╔╝ ██╗╚██████╔╝███████║    ╚██████╔╝██║
-  ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝     ╚═════╝ ╚═╝
-  
-  NexusUI — A next-generation Roblox UI Library
+  NexusUI - A next-generation Roblox UI Library
   Version 1.0.0
-  
-  Usage:
-    local Nexus = loadstring(game:HttpGet('YOUR_RAW_URL'))()
-  
-  Full API compatibility with Rayfield conventions.
-  Drop-in replacement with enhanced visuals & features.
+  Usage: local Nexus = loadstring(game:HttpGet('YOUR_RAW_URL'))()
 --]]
 
 -- NexusUI safe loader: wraps entire init so errors show exact line
 local _NexusOk, _NexusResult = xpcall(function()
 
 
--- ═══════════════════════════════════════════════════
+-- ===================================================
 --  SERVICES
--- ═══════════════════════════════════════════════════
+-- ===================================================
 local Players           = game:GetService("Players")
 local RunService        = game:GetService("RunService")
 local TweenService      = game:GetService("TweenService")
@@ -46,9 +34,9 @@ end
 local LocalPlayer  = Players.LocalPlayer
 local Mouse        = LocalPlayer:GetMouse()
 
--- ═══════════════════════════════════════════════════
+-- ===================================================
 --  UTILITY HELPERS
--- ═══════════════════════════════════════════════════
+-- ===================================================
 local function Tween(obj, props, t, style, dir)
     style = style or Enum.EasingStyle.Quart
     dir   = dir   or Enum.EasingDirection.Out
@@ -130,9 +118,9 @@ local function Ripple(button)
     end)
 end
 
--- ═══════════════════════════════════════════════════
+-- ===================================================
 --  THEME SYSTEM
--- ═══════════════════════════════════════════════════
+-- ===================================================
 local Themes = {
     Default = {
         -- Background layers
@@ -253,9 +241,9 @@ local Themes = {
     },
 }
 
--- ═══════════════════════════════════════════════════
+-- ===================================================
 --  ICON SYSTEM  (Lucide-compatible subset)
--- ═══════════════════════════════════════════════════
+-- ===================================================
 -- In a real deployment, you'd map these to actual
 -- Roblox image asset IDs. Here we use placeholder IDs
 -- and the string name for labelling purposes.
@@ -305,9 +293,9 @@ local function GetIcon(id)
     return id
 end
 
--- ═══════════════════════════════════════════════════
+-- ===================================================
 --  EXECUTOR FUNCTION SAFETY WRAPPERS
--- ═══════════════════════════════════════════════════
+-- ===================================================
 -- These functions only exist in exploit executors.
 -- We wrap them so the library never errors in Studio
 -- or environments where they're absent.
@@ -317,9 +305,9 @@ local _HttpGet = function(url)
     return ok and res or ""
 end
 
--- ═══════════════════════════════════════════════════
+-- ===================================================
 --  CONFIG SAVING (in-memory only, no filesystem)
--- ═══════════════════════════════════════════════════
+-- ===================================================
 local ConfigManager = {}
 ConfigManager.__index = ConfigManager
 
@@ -335,9 +323,9 @@ function ConfigManager:Set(flag, value)
     self.Data[flag] = value
 end
 
--- ═══════════════════════════════════════════════════
+-- ===================================================
 --  NEXUS LIBRARY CORE
--- ═══════════════════════════════════════════════════
+-- ===================================================
 local Nexus = {}
 Nexus.__index = Nexus
 Nexus.Flags = {}
@@ -345,9 +333,9 @@ Nexus.Version = "1.0.0"
 Nexus._windows = {}
 Nexus._activeTheme = Themes.Default
 
--- ───────────────────────────────────────────────────
+-- ---------------------------------------------------
 --  LOADING SCREEN
--- ───────────────────────────────────────────────────
+-- ---------------------------------------------------
 local function ShowLoadingScreen(title, subtitle, theme)
     local T = theme
     local screenGui = Instance.new("ScreenGui")
@@ -521,9 +509,9 @@ local function ShowLoadingScreen(title, subtitle, theme)
     screenGui:Destroy()
 end
 
--- ───────────────────────────────────────────────────
+-- ---------------------------------------------------
 --  KEY SYSTEM
--- ───────────────────────────────────────────────────
+-- ---------------------------------------------------
 local function ShowKeySystem(settings, theme, onSuccess, onFail)
     local T = theme
     local screenGui = Instance.new("ScreenGui")
@@ -576,7 +564,7 @@ local function ShowKeySystem(settings, theme, onSuccess, onFail)
         return l
     end
 
-    -- 🔐 icon badge
+    -- ? icon badge
     local iconBadge = Instance.new("Frame")
     iconBadge.Size             = UDim2.new(0,48,0,48)
     iconBadge.Position         = UDim2.new(0,24,0,24)
@@ -706,7 +694,7 @@ local function ShowKeySystem(settings, theme, onSuccess, onFail)
             screenGui:Destroy()
             onSuccess()
         else
-            statusLabel.Text = "✗  Invalid key. Please try again."
+            statusLabel.Text = "?  Invalid key. Please try again."
             Tween(inputBG, {BackgroundColor3 = T.Danger:Lerp(T.BGSecondary,0.85)}, 0.15)
             task.wait(0.8)
             Tween(inputBG, {BackgroundColor3 = T.BGSecondary}, 0.3)
@@ -737,9 +725,9 @@ local function ShowKeySystem(settings, theme, onSuccess, onFail)
     Tween(card, {Position = UDim2.new(0.5,0,0.5,0)}, 0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 end
 
--- ═══════════════════════════════════════════════════
+-- ===================================================
 --  NOTIFICATION SYSTEM
--- ═══════════════════════════════════════════════════
+-- ===================================================
 local NotifGui = nil
 local NotifContainer = nil
 local NotifCount = 0
@@ -901,9 +889,9 @@ function Nexus:Notify(config)
     end)
 end
 
--- ═══════════════════════════════════════════════════
+-- ===================================================
 --  CREATE WINDOW
--- ═══════════════════════════════════════════════════
+-- ===================================================
 function Nexus:CreateWindow(config)
     local T
     if config.Theme and Themes[config.Theme] then
@@ -922,7 +910,7 @@ function Nexus:CreateWindow(config)
     end
 
     local function BootWindow()
-        -- ── Main ScreenGui ──
+        -- -- Main ScreenGui --
         local screenGui = Instance.new("ScreenGui")
         screenGui.Name           = "NexusUI_" .. (config.Name or "Window")
         screenGui.ResetOnSpawn   = false
@@ -930,7 +918,7 @@ function Nexus:CreateWindow(config)
         screenGui.IgnoreGuiInset = true
         screenGui.Parent         = CoreGui
 
-        -- ── Main frame ──
+        -- -- Main frame --
         local mainFrame = Instance.new("Frame")
         mainFrame.Name             = "MainFrame"
         mainFrame.Size             = UDim2.new(0,680,0,440)
@@ -949,7 +937,7 @@ function Nexus:CreateWindow(config)
             T.BGSecondary,
             T.BG, 145)
 
-        -- ── Top Bar ──
+        -- -- Top Bar --
         local topBar = Instance.new("Frame")
         topBar.Name             = "TopBar"
         topBar.Size             = UDim2.new(1,0,0,52)
@@ -1030,7 +1018,7 @@ function Nexus:CreateWindow(config)
         local minimBtn   = MakeDot(Color3.fromRGB(255,190,50),  -30)
         local maximBtn   = MakeDot(Color3.fromRGB(80,210,120),  -46)
 
-        -- ── Dragging ──
+        -- -- Dragging --
         local dragging, dragOffset
         topBar.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or
@@ -1115,7 +1103,7 @@ function Nexus:CreateWindow(config)
             end
         end
 
-        -- ── Sidebar (tab bar) ──
+        -- -- Sidebar (tab bar) --
         local sidebar = Instance.new("Frame")
         sidebar.Name             = "Sidebar"
         sidebar.Size             = UDim2.new(0,180,1,-52)
@@ -1140,7 +1128,7 @@ function Nexus:CreateWindow(config)
         tabListLayout.Parent      = sidebar
         MakePadding(sidebar, 10, 10, 8, 8)
 
-        -- ── Content area ──
+        -- -- Content area --
         local contentArea = Instance.new("Frame")
         contentArea.Name             = "ContentArea"
         contentArea.Size             = UDim2.new(1,-180,1,-52)
@@ -1180,9 +1168,9 @@ function Nexus:CreateWindow(config)
             BackgroundTransparency = 0
         }, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 
-        -- ════════════════════════════════════════════
+        -- ============================================
         --  WINDOW OBJECT
-        -- ════════════════════════════════════════════
+        -- ============================================
         local Window = {}
         Window._tabs        = {}
         Window._activeTab   = nil
@@ -1192,7 +1180,7 @@ function Nexus:CreateWindow(config)
         Window._configSave  = configSave
         Window._theme       = T
 
-        -- ── CreateTab ──────────────────────────────
+        -- -- CreateTab ------------------------------
         function Window:CreateTab(name, icon)
             self._tabOrder += 1
             local order = self._tabOrder
@@ -1318,7 +1306,7 @@ function Nexus:CreateWindow(config)
                 tabLabel.Font = Enum.Font.GothamBold
             end)
 
-            -- ── Tab Element Helpers ────────────────
+            -- -- Tab Element Helpers ----------------
             local function NextOrder(self_)
                 self_._itemOrder += 1
                 return self_._itemOrder
@@ -1348,9 +1336,9 @@ function Nexus:CreateWindow(config)
                 end)
             end
 
-            -- ═══════════════════════════════════════
+            -- =======================================
             --  Section
-            -- ═══════════════════════════════════════
+            -- =======================================
             function Tab:CreateSection(name)
                 self._itemOrder = (self._itemOrder or 0) + 1
                 local section = Instance.new("Frame")
@@ -1399,9 +1387,9 @@ function Nexus:CreateWindow(config)
                 return SectionObj
             end
 
-            -- ═══════════════════════════════════════
+            -- =======================================
             --  Divider
-            -- ═══════════════════════════════════════
+            -- =======================================
             function Tab:CreateDivider()
                 self._itemOrder = (self._itemOrder or 0) + 1
                 local divFrame = Instance.new("Frame")
@@ -1419,9 +1407,9 @@ function Nexus:CreateWindow(config)
                 return DivObj
             end
 
-            -- ═══════════════════════════════════════
+            -- =======================================
             --  Label
-            -- ═══════════════════════════════════════
+            -- =======================================
             function Tab:CreateLabel(text, icon, color, ignoreTheme)
                 self._itemOrder = (self._itemOrder or 0) + 1
                 local card = BaseCard(self, 40)
@@ -1458,9 +1446,9 @@ function Nexus:CreateWindow(config)
                 return LabelObj
             end
 
-            -- ═══════════════════════════════════════
+            -- =======================================
             --  Paragraph
-            -- ═══════════════════════════════════════
+            -- =======================================
             function Tab:CreateParagraph(config_)
                 self._itemOrder = (self._itemOrder or 0) + 1
                 local card = BaseCard(self, 10)
@@ -1505,9 +1493,9 @@ function Nexus:CreateWindow(config)
                 return ParaObj
             end
 
-            -- ═══════════════════════════════════════
+            -- =======================================
             --  Button
-            -- ═══════════════════════════════════════
+            -- =======================================
             function Tab:CreateButton(config_)
                 self._itemOrder = (self._itemOrder or 0) + 1
                 local card = BaseCard(self, 46)
@@ -1574,9 +1562,9 @@ function Nexus:CreateWindow(config)
                 return BtnObj
             end
 
-            -- ═══════════════════════════════════════
+            -- =======================================
             --  Toggle
-            -- ═══════════════════════════════════════
+            -- =======================================
             function Tab:CreateToggle(config_)
                 self._itemOrder = (self._itemOrder or 0) + 1
                 local initVal = config_.CurrentValue
@@ -1666,9 +1654,9 @@ function Nexus:CreateWindow(config)
                 return ToggleObj
             end
 
-            -- ═══════════════════════════════════════
+            -- =======================================
             --  Slider
-            -- ═══════════════════════════════════════
+            -- =======================================
             function Tab:CreateSlider(config_)
                 self._itemOrder = (self._itemOrder or 0) + 1
                 local minV   = config_.Range and config_.Range[1] or 0
@@ -1804,9 +1792,9 @@ function Nexus:CreateWindow(config)
                 return SliderObj
             end
 
-            -- ═══════════════════════════════════════
+            -- =======================================
             --  Color Picker
-            -- ═══════════════════════════════════════
+            -- =======================================
             function Tab:CreateColorPicker(config_)
                 self._itemOrder = (self._itemOrder or 0) + 1
                 local initColor = config_.Color or Color3.fromRGB(255,255,255)
@@ -1991,9 +1979,9 @@ function Nexus:CreateWindow(config)
                 return CPObj
             end
 
-            -- ═══════════════════════════════════════
+            -- =======================================
             --  Input (TextBox)
-            -- ═══════════════════════════════════════
+            -- =======================================
             function Tab:CreateInput(config_)
                 self._itemOrder = (self._itemOrder or 0) + 1
                 local initText = config_.CurrentValue or ""
@@ -2062,9 +2050,9 @@ function Nexus:CreateWindow(config)
                 return InputObj
             end
 
-            -- ═══════════════════════════════════════
+            -- =======================================
             --  Dropdown
-            -- ═══════════════════════════════════════
+            -- =======================================
             function Tab:CreateDropdown(config_)
                 self._itemOrder = (self._itemOrder or 0) + 1
                 local opts    = config_.Options or {}
@@ -2294,9 +2282,9 @@ function Nexus:CreateWindow(config)
                 return DDObj
             end
 
-            -- ═══════════════════════════════════════
+            -- =======================================
             --  Keybind
-            -- ═══════════════════════════════════════
+            -- =======================================
             function Tab:CreateKeybind(config_)
                 self._itemOrder = (self._itemOrder or 0) + 1
                 local currentKey = config_.CurrentKeybind or "None"
@@ -2398,7 +2386,7 @@ function Nexus:CreateWindow(config)
             return Tab
         end -- CreateTab
 
-        -- ── Window-level API ──────────────────────
+        -- -- Window-level API ----------------------
         function Window:SetVisibility(visible)
             self._mainFrame.Visible = visible
         end
@@ -2416,7 +2404,7 @@ function Nexus:CreateWindow(config)
         return Window
     end -- BootWindow
 
-    -- ── Key System gating ───────────────────────
+    -- -- Key System gating -----------------------
     if config.KeySystem then
         local saved = nil
         -- (key file loading requires executor filesystem, skipped)
@@ -2460,9 +2448,9 @@ function Nexus:CreateWindow(config)
     end
 end
 
--- ═══════════════════════════════════════════════════
+-- ===================================================
 --  TOP-LEVEL API ALIASES
--- ═══════════════════════════════════════════════════
+-- ===================================================
 function Nexus:SetVisibility(visible)
     for _, w in ipairs(self._windows) do
         if w._mainFrame then
@@ -2487,9 +2475,9 @@ function Nexus:Destroy()
     self._windows = {}
 end
 
--- ═══════════════════════════════════════════════════
+-- ===================================================
 --  EXAMPLE USAGE (remove in production)
--- ═══════════════════════════════════════════════════
+-- ===================================================
 --[[
 local Nexus = require(...)  -- or loadstring(...)()
 
