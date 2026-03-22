@@ -1,64 +1,20 @@
 --[[
-  QwenzyUI v3.0 - Module Version
+  QwenzyUI v3.1
   
-  Usage:
-    local Qwenzy = loadstring(game:HttpGet("YOUR_RAW_URL"))()
-  
-  Then:
-    local Window = Qwenzy:CreateWindow({...})
-    local Tab = Window:CreateTab("Main", "home")
-    Tab:CreateButton({...})
-    etc.
-  
-  Full API:
-    Qwenzy:CreateWindow(cfg) -> Window
-    Qwenzy:Notify(cfg)
-    Qwenzy:SetVisibility(bool)
-    Qwenzy:Destroy()
-    Qwenzy.Flags  -- table of all element values
-    Qwenzy.Version
-    
-    Window:CreateTab(name, icon) -> Tab
-    Window:SetVisibility(bool)
-    Window:IsVisible() -> bool
-    Window:Destroy()
-    
-    Tab:CreateSection(name)
-    Tab:CreateDivider()
-    Tab:CreateLabel(text, icon, color)
-    Tab:CreateParagraph({Title, Content})
-    Tab:CreateButton({Name, Callback})
-    Tab:CreateToggle({Name, CurrentValue, Flag, Callback})
-    Tab:CreateSlider({Name, Range, Increment, Suffix, CurrentValue, Flag, Callback})
-    Tab:CreateInput({Name, CurrentValue, PlaceholderText, Flag, Callback})
-    Tab:CreateColorPicker({Name, Color, Flag, Callback})
-    Tab:CreateDropdown({Name, Options, CurrentOption, MultipleOptions, Flag, Callback})
-    Tab:CreateKeybind({Name, CurrentKeybind, Flag, Callback})
-    
-    -- (single glass theme, no theme system)
-    Qwenzy:ApplyTheme(name)  -- live theme swap
-    Qwenzy:GetConfig() -> ConfigManager
-]]
-
---[[
-  QwenzyUI v3.0
-  Clean rewrite - no executor filesystem required
-  Pure Roblox API only
+  local Qwenzy = loadstring(game:HttpGet("RAW_URL"))()
+  local Window = Qwenzy:CreateWindow({ Name="Hub", Icon="zap", ToggleUIKeybind="K" })
+  local Tab = Window:CreateTab("Main", "home")
+  Tab:CreateButton({ Name="Click", Callback=function() end })
 ]]
 
 -- ===================================================
---  DESTROY PREVIOUS INSTANCE (on re-require)
+--  CLEANUP
 -- ===================================================
-for _, name in ipairs({"QwenzyUI_Root","QwenzyNotifications"}) do
-    local ok, cg = pcall(function() return game:GetService("CoreGui") end)
-    if ok and cg then
-        local old = cg:FindFirstChild(name)
-        if old then old:Destroy() end
-    end
-    local pg = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
-    if pg then
-        local o2 = pg:FindFirstChild(name)
-        if o2 then o2:Destroy() end
+local _cg = game:GetService("CoreGui")
+local _pg = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
+for _, n in ipairs({"QwenzyUI_Root","QwenzyNotifications"}) do
+    for _, p in ipairs({_cg, _pg}) do
+        if p then local o=p:FindFirstChild(n); if o then o:Destroy() end end
     end
 end
 
@@ -73,7 +29,6 @@ local HttpService      = game:GetService("HttpService")
 local LocalPlayer      = Players.LocalPlayer
 local Mouse            = LocalPlayer:GetMouse()
 
--- Safe CoreGui
 local CoreGui
 do
     local ok, cg = pcall(function() return game:GetService("CoreGui") end)
@@ -82,227 +37,92 @@ do
     if not ok2 then CoreGui = LocalPlayer:WaitForChild("PlayerGui") end
 end
 
--- ===================================================
---  MOBILE DETECTION & TOUCH HELPERS
--- ===================================================
-local IsMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-
--- Track latest touch position so CursorX/Y work like Mouse.X/Y
-local _touchX, _touchY = 0, 0
-UserInputService.TouchMoved:Connect(function(t)   _touchX = t.Position.X; _touchY = t.Position.Y end)
-UserInputService.TouchStarted:Connect(function(t) _touchX = t.Position.X; _touchY = t.Position.Y end)
-
-local function CursorX() return IsMobile and _touchX or Mouse.X end
-local function CursorY() return IsMobile and _touchY or Mouse.Y end
-
--- Unified pointer-down on a specific GuiObject (mouse OR touch)
-local function OnPointerDown(obj, fn)
-    obj.InputBegan:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.MouseButton1
-        or inp.UserInputType == Enum.UserInputType.Touch then
-            fn(inp)
-        end
-    end)
-end
-
--- Unified global pointer-up (returns connection)
-local function OnPointerUp(fn)
-    return UserInputService.InputEnded:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.MouseButton1
-        or inp.UserInputType == Enum.UserInputType.Touch then
-            fn(inp)
-        end
-    end)
-end
-
 local ROOT = Instance.new("Folder")
 ROOT.Name = "QwenzyUI_Root"
 ROOT.Parent = CoreGui
 
 -- ===================================================
---  FILESYSTEM (safe wrappers)
+--  FILESYSTEM
 -- ===================================================
-local function _safeget(n) return rawget(getfenv and getfenv(0) or _G, n) end
-local _isfile    = _safeget("isfile")    or function() return false end
-local _readfile  = _safeget("readfile")  or function() return "" end
-local _writefile = _safeget("writefile") or function() end
-local _isfolder  = _safeget("isfolder")  or function() return false end
-local _makefolder= _safeget("makefolder")or function() end
+local function _sg(n) return rawget(getfenv and getfenv(0) or _G, n) end
+local _isfile     = _sg("isfile")     or function() return false end
+local _readfile   = _sg("readfile")   or function() return "" end
+local _writefile  = _sg("writefile")  or function() end
+local _isfolder   = _sg("isfolder")   or function() return false end
+local _makefolder = _sg("makefolder") or function() end
 
 -- ===================================================
---  UTILITIES
+--  UTILS
 -- ===================================================
 local function Tween(obj, props, t, style, dir)
     local ok, tw = pcall(function()
         return TweenService:Create(obj,
-            TweenInfo.new(t or 0.25, style or Enum.EasingStyle.Quart, dir or Enum.EasingDirection.Out),
-            props)
+            TweenInfo.new(t or 0.2, style or Enum.EasingStyle.Quart, dir or Enum.EasingDirection.Out), props)
     end)
     if ok and tw then tw:Play() return tw end
 end
 
-local function New(class, props, parent)
-    local inst = Instance.new(class)
-    for k,v in pairs(props) do
-        pcall(function() inst[k] = v end)
-    end
-    if parent then inst.Parent = parent end
-    return inst
+local function New(cls, props, parent)
+    local i = Instance.new(cls)
+    for k,v in pairs(props) do pcall(function() i[k]=v end) end
+    if parent then i.Parent = parent end
+    return i
 end
 
-local function Round(inst, r)
+local function Round(i, r)
     local c = Instance.new("UICorner")
     c.CornerRadius = UDim.new(0, r or 8)
-    c.Parent = inst
+    c.Parent = i
     return c
 end
 
-local function Stroke(inst, color, thick, trans)
+local function Stroke(i, col, th, tr)
     local s = Instance.new("UIStroke")
-    s.Color = color or Color3.fromRGB(255,255,255)
-    s.Thickness = thick or 1
-    s.Transparency = trans or 0.8
-    s.Parent = inst
+    s.Color = col or Color3.new(1,1,1)
+    s.Thickness = th or 1
+    s.Transparency = tr or 0.8
+    s.Parent = i
     return s
 end
 
-local function Grad(inst, c0, c1, rot)
+local function Grad(i, c0, c1, rot)
     local g = Instance.new("UIGradient")
     g.Color = ColorSequence.new(c0, c1)
     g.Rotation = rot or 90
-    g.Parent = inst
+    g.Parent = i
     return g
 end
 
-local function Shadow(parent)
-    local s = New("ImageLabel", {
+local function Shadow(p)
+    return New("ImageLabel", {
         Name="Shadow", BackgroundTransparency=1,
         Image="rbxassetid://6014261993",
-        ImageColor3=Color3.fromRGB(0,0,0), ImageTransparency=0.4,
+        ImageColor3=Color3.new(0,0,0), ImageTransparency=0.6,
         ScaleType=Enum.ScaleType.Slice, SliceCenter=Rect.new(49,49,450,450),
-        Size=UDim2.new(1,70,1,70), Position=UDim2.new(0,-35,0,-35),
-        ZIndex=(parent.ZIndex or 1)-1,
-    }, parent)
-    return s
+        Size=UDim2.new(1,40,1,40), Position=UDim2.new(0,-20,0,-20),
+        ZIndex=(p.ZIndex or 1)-1,
+    }, p)
 end
 
--- Adds frosted glass layering to any frame:
--- bottom tint + top diagonal sheen + edge highlight stroke
-local function Glassify(frame, strokeColor, strokeTrans, sheenTrans)
-    strokeTrans = strokeTrans or 0.5
-    sheenTrans  = sheenTrans  or 0.94
-    -- Top-left diagonal sheen
-    local sheen = New("Frame", {
-        Size=UDim2.new(1,0,0.5,0), Position=UDim2.new(0,0,0,0),
-        BackgroundColor3=Color3.fromRGB(255,255,255),
-        BackgroundTransparency=sheenTrans,
-        BorderSizePixel=0, ZIndex=(frame.ZIndex or 2)+1,
-    }, frame)
-    Round(sheen, 12)
-    -- Thin bottom sheen (frosted edge)
-    local bot = New("Frame", {
-        Size=UDim2.new(1,0,0.25,0), Position=UDim2.new(0,0,0.75,0),
-        BackgroundColor3=Color3.fromRGB(255,255,255),
-        BackgroundTransparency=0.97,
-        BorderSizePixel=0, ZIndex=(frame.ZIndex or 2)+1,
-    }, frame)
-    Round(bot, 12)
-    -- Glass border stroke
-    local gs = Instance.new("UIStroke")
-    gs.Color = strokeColor or T.Acc
-    gs.Thickness = 1
-    gs.Transparency = strokeTrans
-    gs.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    gs.Parent = frame
-    return gs
-end
-
--- Lighting blur — applied when UI opens, removed on close
-local Lighting = game:GetService("Lighting")
-local _blurEffect = nil
-local function SetBlur(enabled)
-    if enabled then
-        if not _blurEffect or not _blurEffect.Parent then
-            _blurEffect = Instance.new("BlurEffect")
-            _blurEffect.Size = 16
-            _blurEffect.Parent = Lighting
-        end
-        Tween(_blurEffect, {Size=16}, 0.35, Enum.EasingStyle.Quart)
-    else
-        if _blurEffect and _blurEffect.Parent then
-            Tween(_blurEffect, {Size=0}, 0.3, Enum.EasingStyle.Quart)
-            task.delay(0.3, function()
-                if _blurEffect then _blurEffect:Destroy(); _blurEffect=nil end
-            end)
-        end
-    end
+local function Ripple(btn)
+    pcall(function()
+        local rp = New("Frame", {
+            BackgroundColor3=Color3.fromRGB(255,255,255),
+            BackgroundTransparency=0.78,
+            Size=UDim2.new(0,0,0,0),
+            Position=UDim2.new(0, Mouse.X-btn.AbsolutePosition.X,
+                               0, Mouse.Y-btn.AbsolutePosition.Y),
+            AnchorPoint=Vector2.new(0.5,0.5), ZIndex=500, ClipsDescendants=false,
+        }, btn)
+        Round(rp, 999)
+        local sz = math.max(btn.AbsoluteSize.X, btn.AbsoluteSize.Y) * 2.4
+        Tween(rp, {Size=UDim2.new(0,sz,0,sz), BackgroundTransparency=1}, 0.45, Enum.EasingStyle.Quad)
+        task.delay(0.45, function() if rp then rp:Destroy() end end)
+    end)
 end
 
 -- ===================================================
---  RIPPLE EFFECT
--- ===================================================
--- Parent ripple directly to the button itself.
--- ClipsDescendants=false on the card means the ripple expands outside.
--- We set a very high ZIndex and use a separate non-clipping container
--- parented to the top-level ScreenGui so it always renders on top.
---
--- Coordinate truth: Mouse.X/Y and AbsolutePosition are BOTH in the same
--- inset-adjusted space. We just subtract AbsolutePosition to get local
--- offset within the element, then place in the overlay using AbsolutePosition.
---
--- Overlay uses IgnoreGuiInset=false so its coordinate space matches
--- AbsolutePosition exactly — no conversion needed.
-
-local RippleOverlaySG = New("ScreenGui", {
-    Name="QwenzyRippleOverlay", ResetOnSpawn=false,
-    ZIndexBehavior=Enum.ZIndexBehavior.Global,
-    IgnoreGuiInset=false,   -- same coord space as AbsolutePosition
-    DisplayOrder=9999,
-}, ROOT)
-local RippleOverlay = New("Frame", {
-    Size=UDim2.new(1,0,1,0), BackgroundTransparency=1,
-    BorderSizePixel=0, ZIndex=32766, ClipsDescendants=false,
-}, RippleOverlaySG)
-
-local function Ripple(btn, customColor)
-    local ap = btn.AbsolutePosition  -- inset-adjusted screen coords
-    local as = btn.AbsoluteSize
-    -- Cursor is also in inset-adjusted coords — no conversion needed
-    local cx = math.clamp(CursorX(), ap.X, ap.X + as.X)
-    local cy = math.clamp(CursorY(), ap.Y, ap.Y + as.Y)
-
-    local color = customColor or Color3.fromRGB(180, 150, 255)
-
-    -- Outer expanding ring
-    local ring = New("Frame", {
-        BackgroundTransparency=1, Size=UDim2.new(0,0,0,0),
-        Position=UDim2.new(0,cx,0,cy),
-        AnchorPoint=Vector2.new(0.5,0.5),
-        ZIndex=32767,
-    }, RippleOverlay)
-    Round(ring, 999)
-    local rs = Instance.new("UIStroke")
-    rs.Color = color; rs.Thickness = 1.5; rs.Transparency = 0.1; rs.Parent = ring
-    local rsz = math.max(as.X, as.Y) * 1.8
-    Tween(ring, {Size=UDim2.new(0,rsz,0,rsz)}, 0.42, Enum.EasingStyle.Quart)
-    Tween(rs,   {Transparency=1},               0.42, Enum.EasingStyle.Quart)
-    task.delay(0.45, function() if ring then ring:Destroy() end end)
-
-    -- Inner filled bloom
-    local rp = New("Frame", {
-        BackgroundColor3=color, BackgroundTransparency=0.72,
-        Size=UDim2.new(0,0,0,0),
-        Position=UDim2.new(0,cx,0,cy),
-        AnchorPoint=Vector2.new(0.5,0.5), ZIndex=32766,
-    }, RippleOverlay)
-    Round(rp, 999)
-    local sz = math.max(as.X, as.Y) * 2.2
-    Tween(rp, {Size=UDim2.new(0,sz,0,sz), BackgroundTransparency=1}, 0.55, Enum.EasingStyle.Quad)
-    task.delay(0.58, function() if rp then rp:Destroy() end end)
-end
-
--- ===================================================
---  CONFIG MANAGER
+--  CONFIG
 -- ===================================================
 local ConfigManager = {}
 ConfigManager.__index = ConfigManager
@@ -312,9 +132,7 @@ function ConfigManager.new(folder, file)
     self:Load()
     return self
 end
-
 function ConfigManager:_path() return self._folder.."/"..self._file..".json" end
-
 function ConfigManager:Load()
     pcall(function()
         if not _isfolder(self._folder) then _makefolder(self._folder) end
@@ -328,64 +146,44 @@ function ConfigManager:Load()
         end
     end)
 end
-
 function ConfigManager:Save()
     pcall(function()
         if not _isfolder(self._folder) then _makefolder(self._folder) end
         _writefile(self:_path(), HttpService:JSONEncode(self.Data))
     end)
 end
-
-function ConfigManager:Get(k, def)
-    return self.Data[k] ~= nil and self.Data[k] or def
-end
-
-function ConfigManager:Set(k, v)
-    self.Data[k] = v
-    self:Save()
-end
+function ConfigManager:Get(k, def) return self.Data[k] ~= nil and self.Data[k] or def end
+function ConfigManager:Set(k, v) self.Data[k] = v; self:Save() end
 
 -- ===================================================
---  SINGLE GLASS THEME  (purple, dark, frosted)
+--  THEME  (single, locked)
 -- ===================================================
 local T = {
-    -- Backgrounds — very dark, almost black with purple tint
-    BG      = Color3.fromRGB(8,  7,  16),
-    BGS     = Color3.fromRGB(12, 10, 22),
-    Panel   = Color3.fromRGB(14, 12, 26),
-    -- Surfaces — slightly lighter glass panels
-    Surface = Color3.fromRGB(22, 18, 40),
-    SurfaceH= Color3.fromRGB(30, 25, 54),
-    -- Accent — vivid purple
-    Acc     = Color3.fromRGB(120, 80, 255),
-    AccB    = Color3.fromRGB(160,120, 255),
-    AccD    = Color3.fromRGB( 80, 50, 190),
-    -- Text
-    TextP   = Color3.fromRGB(240, 235, 255),
-    TextS   = Color3.fromRGB(160, 148, 210),
-    TextM   = Color3.fromRGB( 90,  80, 140),
-    TextA   = Color3.fromRGB(180, 155, 255),
-    -- Semantic
-    OK      = Color3.fromRGB( 72, 214, 132),
-    Warn    = Color3.fromRGB(255, 188,  56),
-    Err     = Color3.fromRGB(255,  75,  85),
-    -- Border — subtle purple-tinted glass edge
-    Border  = Color3.fromRGB( 55, 44, 100),
-    -- Toggle
-    TOn     = Color3.fromRGB(120, 80, 255),
-    TOff    = Color3.fromRGB( 30, 24,  55),
-    -- Topbar / sidebar
-    Top     = Color3.fromRGB(10,  8,  20),
-    Tab     = Color3.fromRGB(10,  8,  20),
+    BG       = Color3.fromRGB(10, 10, 18),
+    BGS      = Color3.fromRGB(14, 14, 24),
+    Surface  = Color3.fromRGB(19, 19, 32),
+    SurfaceH = Color3.fromRGB(26, 26, 44),
+    Panel    = Color3.fromRGB(12, 12, 20),
+    Acc      = Color3.fromRGB(108, 76, 255),
+    AccB     = Color3.fromRGB(148, 116, 255),
+    AccD     = Color3.fromRGB(72, 48, 180),
+    TextP    = Color3.fromRGB(238, 236, 255),
+    TextS    = Color3.fromRGB(155, 148, 200),
+    TextM    = Color3.fromRGB(80, 76, 120),
+    TextA    = Color3.fromRGB(175, 155, 255),
+    OK       = Color3.fromRGB(72, 214, 132),
+    Warn     = Color3.fromRGB(255, 188, 56),
+    Err      = Color3.fromRGB(255, 75, 85),
+    Border   = Color3.fromRGB(44, 40, 80),
+    TOn      = Color3.fromRGB(108, 76, 255),
+    TOff     = Color3.fromRGB(28, 26, 50),
+    Top      = Color3.fromRGB(10, 10, 18),
+    Tab      = Color3.fromRGB(11, 11, 20),
 }
--- Glass colours — pure white at varying alpha used for sheens
-local GLASS_W  = Color3.fromRGB(255,255,255)
-local GLASS_TR = 0.96   -- very subtle sheen
 
 -- ===================================================
---  ICONS (Lucide via HttpGet)
+--  ICONS
 -- ===================================================
-local Icons = {}
 local _lucide = nil
 pcall(function()
     local src = game:HttpGet("https://github.com/latte-soft/lucide-roblox/releases/download/0.1.3/lucide-roblox.luau")
@@ -397,18 +195,18 @@ end)
 
 local function ApplyIcon(img, id)
     if not img then return end
-    if type(id) == "string" and id ~= "" and _lucide then
-        local ok, asset = pcall(function() return _lucide.GetAsset(id, 48) end)
-        if ok and asset then
-            img.Image = asset.Url
-            img.ImageRectSize = asset.ImageRectSize
-            img.ImageRectOffset = asset.ImageRectOffset
+    if type(id)=="string" and id ~= "" and _lucide then
+        local ok, a = pcall(function() return _lucide.GetAsset(id, 48) end)
+        if ok and a then
+            img.Image = a.Url
+            img.ImageRectSize = a.ImageRectSize
+            img.ImageRectOffset = a.ImageRectOffset
             img.Visible = true
             return
         end
     end
-    if type(id) == "number" and id > 0 then
-        img.Image = "rbxassetid://"..tostring(id)
+    if type(id)=="number" and id > 0 then
+        img.Image = "rbxassetid://"..id
         img.ImageRectSize = Vector2.new(0,0)
         img.ImageRectOffset = Vector2.new(0,0)
         img.Visible = true
@@ -423,470 +221,192 @@ end
 -- ===================================================
 local Qwenzy = {}
 Qwenzy.__index = Qwenzy
-Qwenzy.Flags = {}
-Qwenzy.Version = "3.0.0"
+Qwenzy.Flags   = {}
+Qwenzy.Version = "3.1"
 Qwenzy._windows = {}
-
+Qwenzy._T = T
 
 -- ===================================================
---  NOTIFICATION
+--  NOTIFICATIONS
 -- ===================================================
-local NotifSG, NotifCont
-local notifN = 0
-
-local function EnsureNotif()
-    if NotifSG and NotifSG.Parent then return end
-    NotifSG = New("ScreenGui", {Name="QwenzyNotifications", ResetOnSpawn=false,
-        ZIndexBehavior=Enum.ZIndexBehavior.Sibling, IgnoreGuiInset=true}, ROOT)
-    NotifCont = New("Frame", {
-        Size=UDim2.new(0,320,1,-12), Position=UDim2.new(1,-334,0,6),
-        BackgroundTransparency=1, BorderSizePixel=0,
-    }, NotifSG)
-    local ul = Instance.new("UIListLayout")
-    ul.FillDirection = Enum.FillDirection.Vertical
-    ul.VerticalAlignment = Enum.VerticalAlignment.Bottom
-    ul.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    ul.Padding = UDim.new(0,6)
-    ul.SortOrder = Enum.SortOrder.LayoutOrder
-    ul.Parent = NotifCont
-end
+local _nSG, _nCont, _nN = nil, nil, 0
 
 function Qwenzy:Notify(cfg)
+    -- Lazy init
+    if not _nSG or not _nSG.Parent then
+        _nSG = New("ScreenGui", {Name="QwenzyNotifications", ResetOnSpawn=false,
+            ZIndexBehavior=Enum.ZIndexBehavior.Sibling, IgnoreGuiInset=true}, ROOT)
+        _nCont = New("Frame", {
+            Size=UDim2.new(0,300,1,-16), Position=UDim2.new(1,-314,0,8),
+            BackgroundTransparency=1, BorderSizePixel=0,
+        }, _nSG)
+        local ul = Instance.new("UIListLayout")
+        ul.FillDirection = Enum.FillDirection.Vertical
+        ul.VerticalAlignment = Enum.VerticalAlignment.Bottom
+        ul.Padding = UDim.new(0,5)
+        ul.SortOrder = Enum.SortOrder.LayoutOrder
+        ul.Parent = _nCont
+    end
 
-    EnsureNotif()
-    notifN += 1
+    _nN += 1
     local dur = cfg.Duration or 5
 
+    -- Card
     local card = New("Frame", {
-        Name="N"..notifN, Size=UDim2.new(1,0,0,76),
-        BackgroundColor3=T.Panel, BackgroundTransparency=0.38,
-        ClipsDescendants=false, LayoutOrder=notifN,
-        BorderSizePixel=0,
-    }, NotifCont)
-    Round(card, 14)
-    Glassify(card, T.Acc, 0.4, 0.93)
-    Shadow(card)
+        Name="N".._nN, Size=UDim2.new(1,0,0,70),
+        BackgroundColor3=T.Panel, BorderSizePixel=0,
+        ClipsDescendants=true, LayoutOrder=_nN,
+    }, _nCont)
+    Round(card, 10)
+    Stroke(card, T.Border, 1, 0.3)
 
-    local topBar = New("Frame", {Size=UDim2.new(1,0,0,2), BackgroundColor3=T.Acc, BorderSizePixel=0, ZIndex=2}, card)
-    Grad(topBar, T.AccD, T.AccB, 90)
-    -- Shimmer on top accent bar
-    local nShimmer = New("Frame", {
-        Size=UDim2.new(0,60,1,0), Position=UDim2.new(-0.1,0,0,0),
-        BackgroundColor3=Color3.fromRGB(255,255,255),
-        BackgroundTransparency=0.5, BorderSizePixel=0, ZIndex=3,
-    }, topBar)
-    Tween(nShimmer, {Position=UDim2.new(1.1,0,0,0)}, 1.5, Enum.EasingStyle.Sine)
+    -- Left accent bar
+    local bar = New("Frame", {
+        Size=UDim2.new(0,3,1,0), BackgroundColor3=T.Acc,
+        BorderSizePixel=0, ZIndex=3,
+    }, card)
+    Grad(bar, T.AccD, T.AccB, 180)
 
-
-    local xOff = 14
+    local xOff = 18
     if cfg.Image and cfg.Image ~= 0 then
         local ibg = New("Frame", {
-            Size=UDim2.new(0,40,0,40), Position=UDim2.new(0,12,0.5,0),
+            Size=UDim2.new(0,36,0,36), Position=UDim2.new(0,14,0.5,0),
             AnchorPoint=Vector2.new(0,0.5), BackgroundColor3=T.Acc,
-            BackgroundTransparency=0.8, BorderSizePixel=0, ZIndex=2,
+            BackgroundTransparency=0.85, BorderSizePixel=0, ZIndex=2,
         }, card)
-        Round(ibg, 11)
+        Round(ibg, 10)
         local ico = New("ImageLabel", {
-            Size=UDim2.new(0,22,0,22), Position=UDim2.new(0.5,0,0.5,0),
+            Size=UDim2.new(0,20,0,20), Position=UDim2.new(0.5,0,0.5,0),
             AnchorPoint=Vector2.new(0.5,0.5), BackgroundTransparency=1,
-            ImageColor3=T.AccB, ZIndex=3,
+            ImageColor3=T.Acc, ZIndex=3,
         }, ibg)
         ApplyIcon(ico, cfg.Image)
-        xOff = 62
+        xOff = 58
     end
 
     New("TextLabel", {
-        Size=UDim2.new(1,-xOff-10,0,20), Position=UDim2.new(0,xOff,0,14),
-        BackgroundTransparency=1, Text=cfg.Title or "Notification",
-        TextColor3=T.TextP, TextSize=14, Font=Enum.Font.GothamBold,
+        Size=UDim2.new(1,-xOff-10,0,18), Position=UDim2.new(0,xOff,0,12),
+        BackgroundTransparency=1, Text=cfg.Title or "Notice",
+        TextColor3=T.TextP, TextSize=13, Font=Enum.Font.GothamBold,
         TextXAlignment=Enum.TextXAlignment.Left, ZIndex=2,
     }, card)
-
     New("TextLabel", {
-        Size=UDim2.new(1,-xOff-10,0,20), Position=UDim2.new(0,xOff,0,36),
+        Size=UDim2.new(1,-xOff-10,0,18), Position=UDim2.new(0,xOff,0,32),
         BackgroundTransparency=1, Text=cfg.Content or "",
-        TextColor3=T.TextS, TextSize=12, Font=Enum.Font.Gotham,
+        TextColor3=T.TextS, TextSize=11, Font=Enum.Font.Gotham,
         TextXAlignment=Enum.TextXAlignment.Left, TextWrapped=true, ZIndex=2,
     }, card)
 
-    local pt = New("Frame", {Size=UDim2.new(1,0,0,3), Position=UDim2.new(0,0,1,-3),
-        BackgroundColor3=T.BGS, BorderSizePixel=0, ZIndex=3}, card)
-    local pf = New("Frame", {Size=UDim2.new(1,0,1,0), BackgroundColor3=T.Acc, BorderSizePixel=0, ZIndex=4}, pt)
-    Grad(pf, T.AccD, T.AccB, 90)
+    -- Progress bar
+    local pbg = New("Frame", {
+        Size=UDim2.new(1,0,0,2), Position=UDim2.new(0,0,1,-2),
+        BackgroundColor3=T.BGS, BorderSizePixel=0, ZIndex=3,
+    }, card)
+    local pbar = New("Frame", {
+        Size=UDim2.new(1,0,1,0), BackgroundColor3=T.Acc, BorderSizePixel=0, ZIndex=4,
+    }, pbg)
 
+    -- Animate in
     card.Position = UDim2.new(1,20,0,0)
-    Tween(card, {Position=UDim2.new(0,0,0,0)}, 0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+    Tween(card, {Position=UDim2.new(0,0,0,0)}, 0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 
-    local dismissed = false
+    local gone = false
     local function dismiss()
-        if dismissed then return end
-        dismissed = true
-        Tween(card, {Position=UDim2.new(1,24,0,0), BackgroundTransparency=1}, 0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
-        task.delay(0.25, function() if card then card:Destroy() end end)
+        if gone then return end; gone = true
+        Tween(card, {Position=UDim2.new(1,20,0,0), BackgroundTransparency=1}, 0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+        task.delay(0.22, function() pcall(function() card:Destroy() end) end)
     end
 
-    local hit = New("TextButton", {Size=UDim2.new(1,0,1,0), BackgroundTransparency=1, Text="", ZIndex=10}, card)
-    hit.MouseButton1Click:Connect(dismiss)
+    New("TextButton", {Size=UDim2.new(1,0,1,0), BackgroundTransparency=1, Text="", ZIndex=9}, card)
+        .MouseButton1Click:Connect(dismiss)
 
     task.spawn(function()
-        Tween(pf, {Size=UDim2.new(0,0,1,0)}, dur, Enum.EasingStyle.Linear)
-        task.wait(dur)
-        dismiss()
+        Tween(pbar, {Size=UDim2.new(0,0,1,0)}, dur, Enum.EasingStyle.Linear)
+        task.wait(dur); dismiss()
     end)
 end
 
 -- ===================================================
---  LOADING SCREEN  (minigame + real load steps)
+--  LOADING SCREEN
 -- ===================================================
-local function ShowLoading(title, subtitle, T)
-
+local function ShowLoading(title, sub)
     local sg = New("ScreenGui", {Name="QwenzyLoading", ResetOnSpawn=false,
-        ZIndexBehavior=Enum.ZIndexBehavior.Sibling, IgnoreGuiInset=true,
-        DisplayOrder=7000}, ROOT)
+        ZIndexBehavior=Enum.ZIndexBehavior.Sibling, IgnoreGuiInset=true}, ROOT)
 
-    -- ── Background particles ──────────────────────────
-    -- Blur behind loading screen
-    local loadBlur = Instance.new("BlurEffect")
-    loadBlur.Size = 20
-    loadBlur.Parent = game:GetService("Lighting")
-
-    local bg = New("Frame", {
-        Size=UDim2.new(1,0,1,0), BackgroundColor3=T.BG,
-        BackgroundTransparency=0.18,
-        BorderSizePixel=0, ZIndex=100,
-    }, sg)
-
-    -- Floating orbs in background
-    local function SpawnOrb()
-        local vp = workspace.CurrentCamera.ViewportSize
-        local orb = New("Frame", {
-            Size=UDim2.new(0, math.random(60,180), 0, math.random(60,180)),
-            Position=UDim2.new(0, math.random(0, vp.X), 0, math.random(0, vp.Y)),
-            BackgroundColor3=T.Acc, BackgroundTransparency=0.88,
-            BorderSizePixel=0, ZIndex=101,
-        }, bg)
-        Round(orb, 999)
-        local targetX = math.random(0, vp.X)
-        local targetY = math.random(0, vp.Y)
-        local duration = math.random(4,9)
-        Tween(orb, {Position=UDim2.new(0,targetX,0,targetY), BackgroundTransparency=0.95}, duration, Enum.EasingStyle.Sine)
-        task.delay(duration, function() if orb then orb:Destroy() end end)
-    end
-    for _ = 1, 6 do SpawnOrb() end
-    local orbConn = task.spawn(function()
-        while sg and sg.Parent do
-            task.wait(1.5)
-            SpawnOrb()
-        end
-    end)
-
-    -- ── Main card ─────────────────────────────────────
-    local vp2 = workspace.CurrentCamera.ViewportSize
-    local CW, CH = math.min(480, vp2.X - 32), math.min(520, vp2.Y - 32)
+    local bg = New("Frame", {Size=UDim2.new(1,0,1,0), BackgroundColor3=T.BG, BorderSizePixel=0, ZIndex=100}, sg)
 
     local card = New("Frame", {
-        Size=UDim2.new(0,CW,0,CH),
-        Position=UDim2.new(0.5,0,0.5,0),
+        Size=UDim2.new(0,340,0,180),
+        Position=UDim2.new(0.5,0,0.55,0),
         AnchorPoint=Vector2.new(0.5,0.5),
-        BackgroundColor3=T.Panel,
-        BackgroundTransparency=0.42,
-        BorderSizePixel=0, ZIndex=102,
+        BackgroundColor3=T.Surface, BorderSizePixel=0, ZIndex=102,
     }, sg)
-    Round(card, 20)
-    Glassify(card, T.Acc, 0.38, 0.94)
-    -- Noise texture
-    New("ImageLabel", {
-        Size=UDim2.new(1,0,1,0), BackgroundTransparency=1,
-        Image="rbxassetid://9968344605",
-        ImageTransparency=0.96,
-        ScaleType=Enum.ScaleType.Tile, TileSize=UDim2.new(0,128,0,128), ZIndex=103,
-    }, card)
-    -- Top accent bar
-    local topAcc = New("Frame", {
-        Size=UDim2.new(1,0,0,2), BackgroundColor3=T.Acc, BorderSizePixel=0, ZIndex=104,
-    }, card)
-    Grad(topAcc, T.AccD, T.AccB, 90)
+    Round(card, 16)
+    Stroke(card, T.Border, 1, 0.35)
     Shadow(card)
 
-    card.Position = UDim2.new(0.5,0,0.7,0)
-    Tween(card, {Position=UDim2.new(0.5,0,0.5,0)}, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+    -- top accent line
+    local al = New("Frame", {Size=UDim2.new(0.4,0,0,2), Position=UDim2.new(0.3,0,0,0),
+        BackgroundColor3=T.Acc, BorderSizePixel=0, ZIndex=103}, card)
+    Round(al, 1)
 
-    -- ── Header ────────────────────────────────────────
-    local logoSize = 44
-    local logoBg = New("Frame", {
-        Size=UDim2.new(0,logoSize,0,logoSize),
-        Position=UDim2.new(0.5,0,0,18), AnchorPoint=Vector2.new(0.5,0),
-        BackgroundColor3=T.Acc, BackgroundTransparency=0.25,
-        BorderSizePixel=0, ZIndex=105,
+    -- Logo ring
+    local ring = New("Frame", {
+        Size=UDim2.new(0,52,0,52), Position=UDim2.new(0.5,0,0,18),
+        AnchorPoint=Vector2.new(0.5,0), BackgroundColor3=T.Acc,
+        BackgroundTransparency=0.8, BorderSizePixel=0, ZIndex=103,
     }, card)
-    Round(logoBg, logoSize/2)
-    Stroke(logoBg, T.AccB, 1.5, 0.3)
+    Round(ring, 26)
+    Stroke(ring, T.AccB, 1.5, 0.4)
     New("TextLabel", {
         Size=UDim2.new(1,0,1,0), BackgroundTransparency=1,
-        Text="Q", TextColor3=Color3.fromRGB(255,255,255),
-        TextSize=22, Font=Enum.Font.GothamBold, ZIndex=106,
-    }, logoBg)
-    -- Orbit ring around logo
-    local orbitRing = New("Frame", {
-        Size=UDim2.new(0,logoSize+16,0,logoSize+16),
-        Position=UDim2.new(0.5,0,0,10), AnchorPoint=Vector2.new(0.5,0),
-        BackgroundTransparency=1, BorderSizePixel=0, ZIndex=104,
-    }, card)
-    Stroke(orbitRing, T.Acc, 1, 0.55)
-    Round(orbitRing, (logoSize+16)/2)
-    -- Orbiting dot
-    local orbitDot = New("Frame", {
-        Size=UDim2.new(0,6,0,6), AnchorPoint=Vector2.new(0.5,0.5),
-        BackgroundColor3=T.AccB, BorderSizePixel=0, ZIndex=107,
-    }, orbitRing)
-    Round(orbitDot, 3)
-    local orbitAngle = 0
-    local orbitConn
-    orbitConn = RunService.RenderStepped:Connect(function(dt)
-        if not orbitRing or not orbitRing.Parent then orbitConn:Disconnect() return end
-        orbitAngle = orbitAngle + dt * 2.8
-        local r = 0.5
-        local ox = math.cos(orbitAngle) * r
-        local oy = math.sin(orbitAngle) * r
-        orbitDot.Position = UDim2.new(0.5 + ox, -3, 0.5 + oy, -3)
+        Text="Q", TextColor3=T.AccB, TextSize=22, Font=Enum.Font.GothamBold,
+        TextXAlignment=Enum.TextXAlignment.Center, ZIndex=104,
+    }, ring)
+
+    -- Pulse ring
+    task.spawn(function()
+        while ring and ring.Parent do
+            Tween(ring, {BackgroundTransparency=0.5, Size=UDim2.new(0,60,0,60), Position=UDim2.new(0.5,0,0,14)}, 0.9, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+            task.wait(0.9)
+            Tween(ring, {BackgroundTransparency=0.8, Size=UDim2.new(0,52,0,52), Position=UDim2.new(0.5,0,0,18)}, 0.9, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+            task.wait(0.9)
+        end
     end)
 
-    New("TextLabel", {
-        Size=UDim2.new(1,-32,0,22), Position=UDim2.new(0,16,0,logoSize+26),
+    New("TextLabel", {Size=UDim2.new(1,-32,0,20), Position=UDim2.new(0,16,0,86),
         BackgroundTransparency=1, Text=title or "QwenzyUI",
-        TextColor3=T.TextP, TextSize=17, Font=Enum.Font.GothamBold,
-        TextXAlignment=Enum.TextXAlignment.Center, ZIndex=105,
-    }, card)
-
-    local statusLbl = New("TextLabel", {
-        Size=UDim2.new(1,-32,0,16), Position=UDim2.new(0,16,0,logoSize+50),
-        BackgroundTransparency=1, Text="Starting...",
+        TextColor3=T.TextP, TextSize=16, Font=Enum.Font.GothamBold,
+        TextXAlignment=Enum.TextXAlignment.Center, ZIndex=103}, card)
+    local subLbl = New("TextLabel", {Size=UDim2.new(1,-32,0,16), Position=UDim2.new(0,16,0,108),
+        BackgroundTransparency=1, Text=sub or "Loading...",
         TextColor3=T.TextS, TextSize=12, Font=Enum.Font.Gotham,
-        TextXAlignment=Enum.TextXAlignment.Center, ZIndex=105,
-    }, card)
+        TextXAlignment=Enum.TextXAlignment.Center, ZIndex=103}, card)
 
-    -- Progress bar
-    local barY = logoSize + 70
-    local barTrack = New("Frame", {
-        Size=UDim2.new(1,-48,0,5), Position=UDim2.new(0,24,0,barY),
-        BackgroundColor3=T.BGS, BorderSizePixel=0, ZIndex=105,
-    }, card)
-    Round(barTrack, 3)
-    local barFill = New("Frame", {
-        Size=UDim2.new(0,0,1,0), BackgroundColor3=T.Acc,
-        BorderSizePixel=0, ZIndex=106,
-    }, barTrack)
-    Round(barFill, 3)
-    Grad(barFill, T.Acc, T.AccB, 90)
-    -- Shimmer on bar
-    local shimmer = New("Frame", {
-        Size=UDim2.new(0,40,1,0), BackgroundColor3=Color3.fromRGB(255,255,255),
-        BackgroundTransparency=0.7, BorderSizePixel=0, ZIndex=107,
-    }, barFill)
+    -- Progress track
+    local track = New("Frame", {Size=UDim2.new(1,-48,0,3), Position=UDim2.new(0,24,0,144),
+        BackgroundColor3=T.BGS, BorderSizePixel=0, ZIndex=103}, card)
+    Round(track, 2)
+    local fill = New("Frame", {Size=UDim2.new(0,0,1,0), BackgroundColor3=T.Acc, BorderSizePixel=0, ZIndex=104}, track)
+    Round(fill, 2)
 
-    -- ── MINIGAME: Dodge the blocks ────────────────────
-    -- Use known pixel sizes — don't rely on AbsoluteSize which is 0 before first render
-    local GAME_W = CW - 48          -- gameArea pixel width
-    local GAME_H = CH - barY - 90   -- gameArea pixel height
-    local gameArea = New("Frame", {
-        Size=UDim2.new(0,GAME_W,0,GAME_H),
-        Position=UDim2.new(0,24,0,barY+18),
-        BackgroundColor3=T.BG, BackgroundTransparency=0.55,
-        BorderSizePixel=0, ZIndex=105, ClipsDescendants=true,
-    }, card)
-    Round(gameArea, 10)
-    Stroke(gameArea, T.Border, 1, 0.5)
-
-    New("TextLabel", {
-        Size=UDim2.new(1,0,0,14), Position=UDim2.new(0,0,0,2),
-        BackgroundTransparency=1,
-        Text="🎮  DODGE  —  Arrow keys / WASD / touch drag",
-        TextColor3=T.TextS, TextSize=9, Font=Enum.Font.Gotham,
-        TextXAlignment=Enum.TextXAlignment.Center, ZIndex=108,
-    }, gameArea)
-
-    local PLAYER_W, PLAYER_H = 52, 11
-    local playerPxX = (GAME_W - PLAYER_W) / 2   -- pixel X of paddle left edge
-    local player = New("Frame", {
-        Size=UDim2.new(0,PLAYER_W,0,PLAYER_H),
-        Position=UDim2.new(0,playerPxX,0,GAME_H-PLAYER_H-6),
-        BackgroundColor3=T.AccB, BorderSizePixel=0, ZIndex=109,
-    }, gameArea)
-    Round(player, 5)
-    -- Glow outline on paddle
-    local playerStroke = Instance.new("UIStroke")
-    playerStroke.Color = T.Acc; playerStroke.Thickness=1.5; playerStroke.Transparency=0.2
-    playerStroke.Parent = player
-
-    local scoreLabel = New("TextLabel", {
-        Size=UDim2.new(0,70,0,14), Position=UDim2.new(1,-74,0,2),
-        BackgroundTransparency=1, Text="0 pts",
-        TextColor3=T.TextA, TextSize=9, Font=Enum.Font.GothamBold,
-        TextXAlignment=Enum.TextXAlignment.Right, ZIndex=108,
-    }, gameArea)
-
-    local gameScore   = 0
-    local gameActive  = true
-    local blocks      = {}
-    local spawnTimer  = 0
-    local spawnInterval = 0.85
-    local PLAYER_SPEED  = 200   -- px/s
-
-    local function SpawnBlock()
-        if not gameActive then return end
-        local bw  = math.random(28, 60)
-        local bx  = math.random(2, math.max(3, GAME_W - bw - 2))
-        local blk = New("Frame", {
-            Size=UDim2.new(0,bw,0,10),
-            Position=UDim2.new(0,bx,0,-14),
-            BackgroundColor3=T.Err,
-            BackgroundTransparency=0.15,
-            BorderSizePixel=0, ZIndex=108,
-        }, gameArea)
-        Round(blk, 4)
-        local bs = Instance.new("UIStroke")
-        bs.Color=Color3.fromRGB(255,120,120); bs.Thickness=1; bs.Transparency=0.3
-        bs.Parent=blk
-        table.insert(blocks, {frame=blk, x=bx, y=-14, w=bw})
-    end
-
-    -- Touch drag
-    local touchActive, touchStartX, touchStartPx = false, 0, 0
-    gameArea.InputBegan:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.Touch then
-            touchActive   = true
-            touchStartX   = inp.Position.X
-            touchStartPx  = playerPxX
+    -- Steps
+    local steps = {"Connecting...","Loading assets...","Building UI...","Ready."}
+    task.spawn(function()
+        for _, m in ipairs(steps) do
+            task.wait(0.42)
+            if subLbl and subLbl.Parent then subLbl.Text = m end
         end
     end)
-    gameArea.InputChanged:Connect(function(inp)
-        if touchActive and inp.UserInputType == Enum.UserInputType.Touch then
-            local dx = inp.Position.X - touchStartX
-            playerPxX = math.clamp(touchStartPx + dx, 0, GAME_W - PLAYER_W)
-        end
-    end)
-    gameArea.InputEnded:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.Touch then touchActive = false end
-    end)
 
-    local gameConn = RunService.RenderStepped:Connect(function(dt)
-        if not gameActive then return end
+    card.Position = UDim2.new(0.5,0,0.6,0)
+    Tween(card, {Position=UDim2.new(0.5,0,0.5,0)}, 0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+    Tween(fill, {Size=UDim2.new(1,0,1,0)}, 1.85, Enum.EasingStyle.Quart)
 
-        -- Keyboard movement (pixel/s)
-        if UserInputService:IsKeyDown(Enum.KeyCode.Left)  or UserInputService:IsKeyDown(Enum.KeyCode.A) then
-            playerPxX = math.clamp(playerPxX - PLAYER_SPEED * dt, 0, GAME_W - PLAYER_W)
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.Right) or UserInputService:IsKeyDown(Enum.KeyCode.D) then
-            playerPxX = math.clamp(playerPxX + PLAYER_SPEED * dt, 0, GAME_W - PLAYER_W)
-        end
-        player.Position = UDim2.new(0, playerPxX, 0, GAME_H - PLAYER_H - 6)
-
-        -- Spawn
-        spawnTimer = spawnTimer + dt
-        if spawnTimer >= spawnInterval then
-            spawnTimer   = 0
-            spawnInterval = math.max(0.3, spawnInterval - 0.025)
-            SpawnBlock()
-        end
-
-        -- Move + collide
-        local fallSpeed = 80 + gameScore * 1.5
-        local playerTop = GAME_H - PLAYER_H - 6
-        local toRemove = {}
-        for i, b in ipairs(blocks) do
-            b.y = b.y + fallSpeed * dt
-            if b.frame and b.frame.Parent then
-                b.frame.Position = UDim2.new(0, b.x, 0, b.y)
-            end
-            if b.y > GAME_H + 2 then
-                -- escaped — point scored
-                gameScore = gameScore + 1
-                scoreLabel.Text = gameScore .. " pts"
-                pcall(function() b.frame:Destroy() end)
-                table.insert(toRemove, i)
-            elseif b.y + 10 >= playerTop and b.y <= playerTop + PLAYER_H then
-                -- overlap X?
-                if b.x + b.w >= playerPxX and b.x <= playerPxX + PLAYER_W then
-                    -- Hit — flash red
-                    Tween(player, {BackgroundColor3=T.Err}, 0.04)
-                    task.delay(0.18, function()
-                        if player and player.Parent then
-                            Tween(player, {BackgroundColor3=T.AccB}, 0.18)
-                        end
-                    end)
-                    pcall(function() b.frame:Destroy() end)
-                    table.insert(toRemove, i)
-                end
-            end
-        end
-        for i = #toRemove, 1, -1 do table.remove(blocks, toRemove[i]) end
-    end)
-
-    -- ── Hint label ────────────────────────────────────
-    local hintLbl = New("TextLabel", {
-        Size=UDim2.new(1,-48,0,14), Position=UDim2.new(0,24,1,-22),
-        BackgroundTransparency=1, Text="Loading...",
-        TextColor3=T.TextM, TextSize=10, Font=Enum.Font.Gotham,
-        TextXAlignment=Enum.TextXAlignment.Center, ZIndex=105,
-    }, card)
-
-    -- ── Real loading steps ─────────────────────────────
-    local steps = {
-        { label="Connecting to services...",  pct=0.12, fn=function()
-            pcall(function() game:GetService("Players").LocalPlayer:GetMouse() end)
-        end},
-        { label="Fetching icons...",          pct=0.28, fn=function() task.wait(0.08) end},
-        { label="Applying glass theme...",    pct=0.44, fn=function() task.wait(0.06) end},
-        { label="Building window...",         pct=0.60, fn=function() task.wait(0.06) end},
-        { label="Loading saved config...",    pct=0.75, fn=function()
-            pcall(function() ConfigManager.new("QwenzyUI","QwenzyConfig"):Load() end)
-        end},
-        { label="Preloading assets...",       pct=0.88, fn=function()
-            pcall(function()
-                game:GetService("ContentProvider"):PreloadAsync({"rbxassetid://6014261993"})
-            end)
-        end},
-        { label="Ready!",                     pct=1.00, fn=function() task.wait(0.1) end},
-    }
-
-    local function SetProgress(pct, label)
-        statusLbl.Text = label
-        hintLbl.Text   = label
-        Tween(barFill, {Size=UDim2.new(pct,0,1,0)}, 0.3, Enum.EasingStyle.Quart)
-        task.delay(0.05, function()
-            if shimmer and shimmer.Parent then
-                shimmer.Position = UDim2.new(-0.15,0,0,0)
-                Tween(shimmer, {Position=UDim2.new(1.1,0,0,0)}, 0.3, Enum.EasingStyle.Sine)
-            end
-        end)
-    end
-
-    -- Wait one frame so the ScreenGui renders before we start the game loop
-    task.wait()
-
-    -- Run steps on this thread (blocks here, game loop runs on RenderStepped)
-    for _, step in ipairs(steps) do
-        SetProgress(step.pct, step.label)
-        pcall(step.fn)
-        task.wait(0.08)
-    end
-
-    -- Done
-    gameActive = false
-    gameConn:Disconnect()
-    pcall(function() orbitConn:Disconnect() end)
-    -- clean up remaining blocks
-    for _, b in ipairs(blocks) do pcall(function() b.frame:Destroy() end) end
-    blocks = {}
-
-    statusLbl.Text = "Score: " .. gameScore .. " pts — nice!"
-    task.wait(0.4)
-
-    Tween(bg,   {BackgroundTransparency=1}, 0.4)
-    Tween(card, {Position=UDim2.new(0.5,0,0.35,0), BackgroundTransparency=1}, 0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
-    task.wait(0.4)
-    -- Remove loading blur (window will add its own)
-    pcall(function() loadBlur:Destroy() end)
+    task.wait(2.0)
+    Tween(bg, {BackgroundTransparency=1}, 0.28)
+    Tween(card, {BackgroundTransparency=1}, 0.28)
+    task.wait(0.28)
     sg:Destroy()
 end
 
@@ -897,498 +417,438 @@ function Qwenzy:CreateWindow(cfg)
     for _, w in ipairs(self._windows) do pcall(function() w:Destroy() end) end
     self._windows = {}
 
-    -- T is the global glass theme
-    
+    ShowLoading(cfg.LoadingTitle, cfg.LoadingSubtitle)
 
-    local conns = {}
-    local function Track(c) table.insert(conns, c) return c end
-
-    -- Blocking: runs loading screen (with minigame) then returns here
-    ShowLoading(cfg.LoadingTitle, cfg.LoadingSubtitle, T)
-
-    -- Main ScreenGui
-    local sg = New("ScreenGui", {Name="QwenzyUI_Window", ResetOnSpawn=false,
-        ZIndexBehavior=Enum.ZIndexBehavior.Sibling, IgnoreGuiInset=true}, ROOT)
-
-    -- Responsive sizing
     local vp = workspace.CurrentCamera.ViewportSize
-    local WIN_W = math.min(680, vp.X - 16)
-    local WIN_H = math.min(440, vp.Y - 16)
-    local SIDE_W = IsMobile and math.min(120, math.floor(WIN_W * 0.32)) or 174
+    local isMobile = vp.X < 600
 
-    -- Enable background blur when window opens
-    SetBlur(true)
+    -- Layout constants
+    local WIN_W   = isMobile and math.min(vp.X - 12, 400) or 640
+    local WIN_H   = isMobile and math.min(vp.Y - 56, 500) or 420
+    local TOP_H   = 44
+    local SIDE_W  = isMobile and 50 or 162
 
-    -- Main frame — deep glass
+    local sg = New("ScreenGui", {
+        Name="QwenzyUI_Window", ResetOnSpawn=false,
+        ZIndexBehavior=Enum.ZIndexBehavior.Sibling, IgnoreGuiInset=true,
+    }, ROOT)
+
+    -- Main panel
     local main = New("Frame", {
-        Name="Main",
-        Size=UDim2.new(0, WIN_W, 0, 0),
-        Position=UDim2.new(0, (vp.X - WIN_W)/2, 0, (vp.Y - WIN_H)/2),
-        AnchorPoint=Vector2.new(0,0),
-        BackgroundColor3=T.BG,
-        BackgroundTransparency=0.35,   -- more transparent = more glass
-        BorderSizePixel=0,
-        ClipsDescendants=true,
+        Size=UDim2.new(0,WIN_W,0,0),
+        Position=UDim2.new(0,(vp.X-WIN_W)/2, 0,(vp.Y-WIN_H)/2),
+        BackgroundColor3=T.BG, BorderSizePixel=0, ClipsDescendants=true,
     }, sg)
-    Round(main, 18)
+    Round(main, 12)
+    Stroke(main, T.Border, 1, 0.25)
     Shadow(main)
-    -- Very subtle tinted gradient overlay
-    Grad(main, T.BGS, T.BG, 145)
-    -- Glassify adds sheen layers + border stroke
-    local mainGS = Glassify(main, T.Acc, 0.45, 0.96)
-    -- Noise texture for frosted glass feel
-    New("ImageLabel", {
-        Name="Noise", Size=UDim2.new(1,0,1,0),
-        BackgroundTransparency=1,
-        Image="rbxassetid://9968344605",   -- tileable noise
-        ImageTransparency=0.96,
-        ScaleType=Enum.ScaleType.Tile, TileSize=UDim2.new(0,128,0,128),
-        ZIndex=0,
-    }, main)
 
-    -- Topbar — frosted glass panel
+    -- ---- TOPBAR ----
     local topbar = New("Frame", {
-        Size=UDim2.new(1,0,0,52), BackgroundColor3=T.Top,
-        BackgroundTransparency=0.45, BorderSizePixel=0, ZIndex=3,
+        Size=UDim2.new(1,0,0,TOP_H),
+        BackgroundColor3=T.Top, BorderSizePixel=0, ZIndex=3,
     }, main)
-    Glassify(topbar, T.Acc, 0.6, 0.92)
-    -- Bottom separator glow
+    -- Bottom border glow
     New("Frame", {Size=UDim2.new(1,0,0,1), Position=UDim2.new(0,0,1,-1),
-        BackgroundColor3=T.Acc, BackgroundTransparency=0.55, BorderSizePixel=0, ZIndex=4}, topbar)
-    -- Accent bar
-    local accLine = New("Frame", {Size=UDim2.new(1,0,0,2), BackgroundColor3=T.Acc, BorderSizePixel=0, ZIndex=4}, topbar)
-    Grad(accLine, T.AccD, T.AccB, 90)
-    -- Shimmer sweep
-    local accShimmer = New("Frame", {
-        Size=UDim2.new(0,120,1,0), Position=UDim2.new(-0.2,0,0,0),
-        BackgroundColor3=Color3.fromRGB(255,255,255),
-        BackgroundTransparency=0.55, BorderSizePixel=0, ZIndex=5,
-    }, accLine)
-    task.spawn(function()
-        while accLine and accLine.Parent do
-            accShimmer.Position = UDim2.new(-0.2,0,0,0)
-            Tween(accShimmer, {Position=UDim2.new(1.2,0,0,0)}, 2.5, Enum.EasingStyle.Sine)
-            task.wait(4)
-        end
-    end)
+        BackgroundColor3=T.Acc, BackgroundTransparency=0.82, BorderSizePixel=0, ZIndex=4}, topbar)
 
-    -- Traffic lights (left side) — larger hit targets for touch
-    local function WinDot(color, xOff)
-        local dot = New("Frame", {
-            Size=UDim2.new(0,13,0,13), Position=UDim2.new(0,xOff,0.5,0),
-            AnchorPoint=Vector2.new(0,0.5), BackgroundColor3=color,
-            BorderSizePixel=0, ZIndex=5,
-        }, topbar)
-        Round(dot, 7)
-        -- Hit area is 44×44 minimum for touch (Apple HIG guideline)
-        local hit = New("TextButton", {
-            Size=UDim2.new(0,44,0,44), Position=UDim2.new(0.5,0,0.5,0),
-            AnchorPoint=Vector2.new(0.5,0.5), BackgroundTransparency=1, Text="", ZIndex=6,
-        }, dot)
-        Track(hit.MouseEnter:Connect(function() Tween(dot, {Size=UDim2.new(0,15,0,15)}, 0.1) end))
-        Track(hit.MouseLeave:Connect(function() Tween(dot, {Size=UDim2.new(0,13,0,13)}, 0.1) end))
-        return dot, hit
-    end
-    local _, closeHit = WinDot(Color3.fromRGB(255,90,90), 14)
-    local _, minimHit = WinDot(Color3.fromRGB(255,190,50), 32)
-    local _, maximHit = WinDot(Color3.fromRGB(80,210,120), 50)
-
-    -- Icon badge
-    local iconBadge = New("Frame", {
-        Size=UDim2.new(0,32,0,32), Position=UDim2.new(0,72,0.5,0),
-        AnchorPoint=Vector2.new(0,0.5), BackgroundColor3=T.Acc,
-        BackgroundTransparency=0.82, BorderSizePixel=0, ZIndex=4,
-    }, topbar)
-    Round(iconBadge, 9)
+    -- Icon + title
+    local titleX = 14
     if cfg.Icon and cfg.Icon ~= 0 then
         local ico = New("ImageLabel", {
-            Size=UDim2.new(0,18,0,18), Position=UDim2.new(0.5,0,0.5,0),
-            AnchorPoint=Vector2.new(0.5,0.5), BackgroundTransparency=1,
+            Size=UDim2.new(0,18,0,18), Position=UDim2.new(0,14,0.5,0),
+            AnchorPoint=Vector2.new(0,0.5), BackgroundTransparency=1,
             ImageColor3=T.AccB, ZIndex=5,
-        }, iconBadge)
+        }, topbar)
         ApplyIcon(ico, cfg.Icon)
-    else
-        New("TextLabel", {Size=UDim2.new(1,0,1,0), BackgroundTransparency=1,
-            Text="Q", TextColor3=T.AccB, TextSize=16, Font=Enum.Font.GothamBold,
-            TextXAlignment=Enum.TextXAlignment.Center, ZIndex=5}, iconBadge)
+        titleX = 38
     end
-
     New("TextLabel", {
-        Size=UDim2.new(1,-240,0,20), Position=UDim2.new(0,114,0.5,0),
+        Size=UDim2.new(1,-140,0,16), Position=UDim2.new(0,titleX,0.5,0),
         AnchorPoint=Vector2.new(0,0.5), BackgroundTransparency=1,
         Text=cfg.Name or "QwenzyUI", TextColor3=T.TextP,
-        TextSize=15, Font=Enum.Font.GothamBold,
+        TextSize=13, Font=Enum.Font.GothamBold,
         TextXAlignment=Enum.TextXAlignment.Left, ZIndex=4,
     }, topbar)
 
-    -- Drag — supports both mouse and touch
-    local dragging, dragX, dragY = false, 0, 0
-    Track(topbar.InputBegan:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.MouseButton1
-        or inp.UserInputType == Enum.UserInputType.Touch then
+    -- Topbar control buttons
+    local function TopBtn(icon, xOff, icCol)
+        local btn = New("TextButton", {
+            Size=UDim2.new(0,26,0,26), Position=UDim2.new(1,xOff,0.5,0),
+            AnchorPoint=Vector2.new(1,0.5), BackgroundColor3=T.SurfaceH,
+            BackgroundTransparency=0.55, BorderSizePixel=0,
+            Text="", AutoButtonColor=false, ZIndex=5,
+        }, topbar)
+        Round(btn, 7)
+        local img = New("ImageLabel", {
+            Size=UDim2.new(0,13,0,13), Position=UDim2.new(0.5,0,0.5,0),
+            AnchorPoint=Vector2.new(0.5,0.5), BackgroundTransparency=1,
+            ImageColor3=icCol or T.TextM, ZIndex=6,
+        }, btn)
+        ApplyIcon(img, icon)
+        btn.MouseEnter:Connect(function()
+            Tween(btn, {BackgroundTransparency=0.05, BackgroundColor3=icCol or T.SurfaceH}, 0.1)
+            Tween(img, {ImageColor3=icCol or T.TextP}, 0.1)
+        end)
+        btn.MouseLeave:Connect(function()
+            Tween(btn, {BackgroundTransparency=0.55, BackgroundColor3=T.SurfaceH}, 0.1)
+            Tween(img, {ImageColor3=icCol or T.TextM}, 0.1)
+        end)
+        return btn
+    end
+
+    local closeBtn = TopBtn("x",     -8,  T.Err)
+    local minimBtn = TopBtn("minus", -40, T.TextM)
+
+    -- Drag support (mouse + touch)
+    local dragging, dX, dY = false, 0, 0
+    topbar.InputBegan:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 or
+           inp.UserInputType == Enum.UserInputType.Touch then
             dragging = true
-            local px = inp.UserInputType == Enum.UserInputType.Touch and inp.Position.X or Mouse.X
-            local py = inp.UserInputType == Enum.UserInputType.Touch and inp.Position.Y or Mouse.Y
-            dragX = px - main.AbsolutePosition.X
-            dragY = py - main.AbsolutePosition.Y
+            dX = inp.Position.X - main.AbsolutePosition.X
+            dY = inp.Position.Y - main.AbsolutePosition.Y
         end
-    end))
-    Track(UserInputService.InputChanged:Connect(function(inp)
-        if dragging and (inp.UserInputType == Enum.UserInputType.MouseMovement
-                      or inp.UserInputType == Enum.UserInputType.Touch) then
+    end)
+    UserInputService.InputChanged:Connect(function(inp)
+        if not dragging then return end
+        if inp.UserInputType == Enum.UserInputType.MouseMovement or
+           inp.UserInputType == Enum.UserInputType.Touch then
             local vp2 = workspace.CurrentCamera.ViewportSize
-            local px = inp.UserInputType == Enum.UserInputType.Touch and inp.Position.X or Mouse.X
-            local py = inp.UserInputType == Enum.UserInputType.Touch and inp.Position.Y or Mouse.Y
             main.Position = UDim2.new(0,
-                math.clamp(px - dragX, 0, vp2.X - main.AbsoluteSize.X),
+                math.clamp(inp.Position.X-dX, 0, vp2.X-main.AbsoluteSize.X),
                 0,
-                math.clamp(py - dragY, 0, vp2.Y - main.AbsoluteSize.Y))
+                math.clamp(inp.Position.Y-dY, 0, vp2.Y-main.AbsoluteSize.Y))
         end
-    end))
-    Track(UserInputService.InputEnded:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.MouseButton1
-        or inp.UserInputType == Enum.UserInputType.Touch then
+    end)
+    UserInputService.InputEnded:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 or
+           inp.UserInputType == Enum.UserInputType.Touch then
             dragging = false
         end
-    end))
-
-    -- Window controls
-    local minimized, prevSz = false, nil
-    closeHit.MouseButton1Click:Connect(function()
-        SetBlur(false)
-        Tween(main, {Size=UDim2.new(0,WIN_W,0,0)}, 0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
-        task.delay(0.25, function() sg:Destroy() end)
     end)
-    minimHit.MouseButton1Click:Connect(function()
+
+    -- Close / minimize
+    local minimized, prevSize = false, nil
+    closeBtn.MouseButton1Click:Connect(function()
+        Ripple(closeBtn)
+        Tween(main, {Size=UDim2.new(0,WIN_W,0,0)}, 0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+        task.delay(0.2, function() pcall(function() sg:Destroy() end) end)
+    end)
+    minimBtn.MouseButton1Click:Connect(function()
+        Ripple(minimBtn)
         if minimized then
-            Tween(main, {Size=prevSz}, 0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+            Tween(main, {Size=prevSize}, 0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
             minimized = false
         else
-            prevSz = main.Size
-            Tween(main, {Size=UDim2.new(0,WIN_W,0,52)}, 0.22, Enum.EasingStyle.Quart)
+            prevSize = main.Size
+            Tween(main, {Size=UDim2.new(0,WIN_W,0,TOP_H)}, 0.2, Enum.EasingStyle.Quart)
             minimized = true
         end
     end)
-    maximHit.MouseButton1Click:Connect(function()
-        local vp2 = workspace.CurrentCamera.ViewportSize
-        local w, h = math.min(vp2.X-16,1100), vp2.Y-16
-        if main.Size.Y.Offset < WIN_H - 10 then
-            Tween(main, {Size=UDim2.new(0,w,0,h), Position=UDim2.new(0,(vp2.X-w)/2,0,(vp2.Y-h)/2)}, 0.3)
-        else
-            local s = UDim2.new(0,WIN_W,0,WIN_H)
-            Tween(main, {Size=s, Position=UDim2.new(0,(vp2.X-WIN_W)/2,0,(vp2.Y-WIN_H)/2)}, 0.3)
+
+    -- Keyboard toggle
+    if cfg.ToggleUIKeybind then
+        local kc = typeof(cfg.ToggleUIKeybind)=="EnumItem"
+            and cfg.ToggleUIKeybind
+            or Enum.KeyCode[tostring(cfg.ToggleUIKeybind)]
+        if kc then
+            UserInputService.InputBegan:Connect(function(inp, gp)
+                if not gp and inp.KeyCode == kc then
+                    main.Visible = not main.Visible
+                end
+            end)
+        end
+    end
+
+    -- ---- MOBILE TOGGLE BUTTON ----
+    -- Floating pill at bottom-right, always on screen
+    local fab = New("TextButton", {
+        Size=UDim2.new(0,44,0,44),
+        Position=UDim2.new(1,-56, 1,-56),
+        BackgroundColor3=T.Acc,
+        BorderSizePixel=0, Text="", AutoButtonColor=false, ZIndex=400,
+    }, sg)
+    Round(fab, 22)
+    Shadow(fab)
+    Stroke(fab, T.AccB, 1, 0.6)
+
+    local fabIco = New("ImageLabel", {
+        Size=UDim2.new(0,20,0,20), Position=UDim2.new(0.5,0,0.5,0),
+        AnchorPoint=Vector2.new(0.5,0.5), BackgroundTransparency=1,
+        ImageColor3=T.BG, ZIndex=401,
+    }, fab)
+    ApplyIcon(fabIco, "layout-grid")
+
+    -- Subtle idle glow pulse
+    task.spawn(function()
+        while fab and fab.Parent do
+            Tween(fab, {BackgroundColor3=T.AccB}, 1.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+            task.wait(1.4)
+            Tween(fab, {BackgroundColor3=T.Acc}, 1.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+            task.wait(1.4)
         end
     end)
 
-    -- Toggle keybind (keyboard)
-    if cfg.ToggleUIKeybind then
-        local kc = typeof(cfg.ToggleUIKeybind)=="EnumItem" and cfg.ToggleUIKeybind or Enum.KeyCode[tostring(cfg.ToggleUIKeybind)]
-        if kc then
-            Track(UserInputService.InputBegan:Connect(function(inp, gp)
-                if not gp and inp.KeyCode == kc then main.Visible = not main.Visible end
-            end))
+    fab.MouseButton1Click:Connect(function()
+        Ripple(fab)
+        local showing = not main.Visible
+        main.Visible = showing
+        if showing then
+            -- Snap back on screen if it drifted off
+            local vp2 = workspace.CurrentCamera.ViewportSize
+            local ap = main.AbsolutePosition
+            local as = main.AbsoluteSize
+            if ap.X < 0 or ap.Y < 0 or ap.X+as.X > vp2.X or ap.Y+as.Y > vp2.Y then
+                Tween(main, {Position=UDim2.new(0,(vp2.X-as.X)/2,0,(vp2.Y-as.Y)/2)}, 0.3, Enum.EasingStyle.Back)
+            end
+            Tween(main, {Size=UDim2.new(0,WIN_W,0,WIN_H)}, 0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+            minimized = false
         end
-    end
+        -- Icon swap
+        ApplyIcon(fabIco, showing and "layout-grid" or "layout-grid")
+    end)
 
-    -- Mobile toggle button — floating button to show/hide when no keyboard
-    if IsMobile then
-        local mToggleSG = New("ScreenGui", {
-            Name="QwenzyMobileToggle", ResetOnSpawn=false,
-            ZIndexBehavior=Enum.ZIndexBehavior.Sibling, IgnoreGuiInset=true,
-            DisplayOrder=8000,
-        }, ROOT)
-        local mBtn = New("TextButton", {
-            Size=UDim2.new(0,48,0,48),
-            Position=UDim2.new(1,-60,1,-100),
-            BackgroundColor3=T.Acc, BorderSizePixel=0,
-            Text="Q", TextColor3=Color3.fromRGB(255,255,255),
-            TextSize=18, Font=Enum.Font.GothamBold,
-            AutoButtonColor=false, ZIndex=100,
-        }, mToggleSG)
-        Round(mBtn, 24)
-        Stroke(mBtn, T.AccD, 2, 0.2)
-        -- Make it draggable too
-        local mDrag, mDX, mDY = false, 0, 0
-        local mMoved = false
-        mBtn.InputBegan:Connect(function(inp)
-            if inp.UserInputType == Enum.UserInputType.Touch
-            or inp.UserInputType == Enum.UserInputType.MouseButton1 then
-                mDrag = true; mMoved = false
-                mDX = inp.Position.X - mBtn.AbsolutePosition.X
-                mDY = inp.Position.Y - mBtn.AbsolutePosition.Y
-            end
-        end)
-        UserInputService.InputChanged:Connect(function(inp)
-            if mDrag and (inp.UserInputType == Enum.UserInputType.Touch
-                       or inp.UserInputType == Enum.UserInputType.MouseMovement) then
-                local vp2 = workspace.CurrentCamera.ViewportSize
-                local px = inp.UserInputType == Enum.UserInputType.Touch and inp.Position.X or Mouse.X
-                local py = inp.UserInputType == Enum.UserInputType.Touch and inp.Position.Y or Mouse.Y
-                if math.abs(px - (mBtn.AbsolutePosition.X + mDX)) > 4
-                or math.abs(py - (mBtn.AbsolutePosition.Y + mDY)) > 4 then
-                    mMoved = true
-                end
-                mBtn.Position = UDim2.new(0,
-                    math.clamp(px - mDX, 0, vp2.X - 48), 0,
-                    math.clamp(py - mDY, 0, vp2.Y - 48))
-            end
-        end)
-        UserInputService.InputEnded:Connect(function(inp)
-            if inp.UserInputType == Enum.UserInputType.Touch
-            or inp.UserInputType == Enum.UserInputType.MouseButton1 then
-                if mDrag and not mMoved then
-                    main.Visible = not main.Visible
-                    Tween(mBtn, {BackgroundColor3 = main.Visible and T.Acc or T.AccD}, 0.15)
-                end
-                mDrag = false
-            end
-        end)
-    end
+    -- Also support drag of the FAB itself
+    local fabDrag, fabDX, fabDY = false, 0, 0
+    fab.InputBegan:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 or
+           inp.UserInputType == Enum.UserInputType.Touch then
+            fabDrag = true
+            fabDX = inp.Position.X - fab.AbsolutePosition.X
+            fabDY = inp.Position.Y - fab.AbsolutePosition.Y
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(inp)
+        if not fabDrag then return end
+        if inp.UserInputType == Enum.UserInputType.MouseMovement or
+           inp.UserInputType == Enum.UserInputType.Touch then
+            local vp2 = workspace.CurrentCamera.ViewportSize
+            local nx = math.clamp(inp.Position.X-fabDX, 8, vp2.X-fab.AbsoluteSize.X-8)
+            local ny = math.clamp(inp.Position.Y-fabDY, 8, vp2.Y-fab.AbsoluteSize.Y-8)
+            fab.Position = UDim2.new(0,nx,0,ny)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 or
+           inp.UserInputType == Enum.UserInputType.Touch then
+            fabDrag = false
+        end
+    end)
 
-    -- Sidebar — frosted glass panel
+    -- ---- SIDEBAR ----
     local sidebar = New("Frame", {
-        Name="Sidebar", Size=UDim2.new(0,SIDE_W,1,-52), Position=UDim2.new(0,0,0,52),
-        BackgroundColor3=T.Tab, BackgroundTransparency=0.5,
-        BorderSizePixel=0, ZIndex=2, ClipsDescendants=true,
+        Size=UDim2.new(0,SIDE_W,1,-TOP_H), Position=UDim2.new(0,0,0,TOP_H),
+        BackgroundColor3=T.Tab, BorderSizePixel=0, ZIndex=2,
     }, main)
-    Glassify(sidebar, T.Acc, 0.7, 0.95)
-    -- Right edge accent glow line
-    New("Frame", {Size=UDim2.new(0,1,1,0), Position=UDim2.new(1,-1,0,0),
-        BackgroundColor3=T.Acc, BackgroundTransparency=0.6, BorderSizePixel=0, ZIndex=3}, sidebar)
+    New("Frame", {
+        Size=UDim2.new(0,1,1,0), Position=UDim2.new(1,-1,0,0),
+        BackgroundColor3=T.Border, BackgroundTransparency=0.3, BorderSizePixel=0, ZIndex=3,
+    }, sidebar)
 
-    local tabCont = New("ScrollingFrame", {
-        Size=UDim2.new(1,0,1,-24), BackgroundTransparency=1,
+    local tabScroll = New("ScrollingFrame", {
+        Size=UDim2.new(1,0,1,-16), BackgroundTransparency=1,
         BorderSizePixel=0, ScrollBarThickness=0,
         CanvasSize=UDim2.new(0,0,0,0), AutomaticCanvasSize=Enum.AutomaticSize.Y,
         ZIndex=3,
     }, sidebar)
-    local tabLayout = Instance.new("UIListLayout")
-    tabLayout.FillDirection = Enum.FillDirection.Vertical
-    tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    tabLayout.Padding = UDim.new(0,2)
-    tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    tabLayout.Parent = tabCont
-    local tabPad = Instance.new("UIPadding")
-    tabPad.PaddingTop = UDim.new(0,8)
-    tabPad.PaddingBottom = UDim.new(0,8)
-    tabPad.PaddingLeft = UDim.new(0,6)
-    tabPad.PaddingRight = UDim.new(0,6)
-    tabPad.Parent = tabCont
+    local tl = Instance.new("UIListLayout")
+    tl.FillDirection = Enum.FillDirection.Vertical
+    tl.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    tl.Padding = UDim.new(0,2)
+    tl.SortOrder = Enum.SortOrder.LayoutOrder
+    tl.Parent = tabScroll
+    local tp = Instance.new("UIPadding")
+    tp.PaddingTop = UDim.new(0,8); tp.PaddingBottom = UDim.new(0,8)
+    tp.PaddingLeft = UDim.new(0, isMobile and 3 or 5)
+    tp.PaddingRight = UDim.new(0, isMobile and 3 or 5)
+    tp.Parent = tabScroll
 
-    New("TextLabel", {
-        Size=UDim2.new(1,0,0,20), Position=UDim2.new(0,0,1,-22),
-        BackgroundTransparency=1, Text="QwenzyUI v"..Qwenzy.Version,
-        TextColor3=T.TextM, TextSize=10, Font=Enum.Font.Gotham,
-        TextXAlignment=Enum.TextXAlignment.Center, ZIndex=3,
-    }, sidebar)
+    if not isMobile then
+        New("TextLabel", {
+            Size=UDim2.new(1,0,0,14), Position=UDim2.new(0,0,1,-15),
+            BackgroundTransparency=1, Text="v"..Qwenzy.Version,
+            TextColor3=T.TextM, TextSize=9, Font=Enum.Font.Gotham,
+            TextXAlignment=Enum.TextXAlignment.Center, ZIndex=3,
+        }, sidebar)
+    end
 
-    -- Content
+    -- ---- CONTENT ----
     local content = New("Frame", {
-        Name="Content", Size=UDim2.new(1,-SIDE_W,1,-52), Position=UDim2.new(0,SIDE_W,0,52),
+        Size=UDim2.new(1,-SIDE_W,1,-TOP_H), Position=UDim2.new(0,SIDE_W,0,TOP_H),
         BackgroundTransparency=1, BorderSizePixel=0, ClipsDescendants=true,
     }, main)
 
     -- Window object
     local Window = {
-        _sg=sg, _main=main, _T=T, _conns=conns,
-        _tabs={}, _activeTab=nil, _tabN=0,
-        _dropdowns={},
+        _sg=sg, _main=main, _conns={}, _tabs={}, _activeTab=nil, _tabN=0, _dropdowns={},
     }
-
     table.insert(Qwenzy._windows, Window)
 
-    -- -----------------------------------------------
+    -- Animate open
+    Tween(main, {Size=UDim2.new(0,WIN_W,0,WIN_H)}, 0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+
+    -- =============================================
     --  CREATE TAB
-    -- -----------------------------------------------
+    -- =============================================
     function Window:CreateTab(name, icon)
         self._tabN += 1
-        local order = self._tabN
+        local order  = self._tabN
         local isFirst = order == 1
+        local mob    = isMobile
 
-        local tabBtn = New("TextButton", {
-            Size=UDim2.new(1,0,0, IsMobile and 48 or 40),
+        local TAB_H = mob and 46 or 38
+
+        local btn = New("TextButton", {
+            Size=UDim2.new(1,0,0,TAB_H),
             BackgroundColor3=isFirst and T.SurfaceH or T.Tab,
-            BackgroundTransparency=isFirst and 0.45 or 1,
+            BackgroundTransparency=isFirst and 0 or 1,
             BorderSizePixel=0, Text="", AutoButtonColor=false,
             ZIndex=3, LayoutOrder=order,
-        }, tabCont)
-        Round(tabBtn, 10)
-        local tabStroke = Instance.new("UIStroke")
-        tabStroke.Color = T.Acc
-        tabStroke.Thickness = 1
-        tabStroke.Transparency = isFirst and 0.45 or 1
-        tabStroke.Parent = tabBtn
+        }, tabScroll)
+        Round(btn, 8)
 
+        -- Active indicator: left bar on desktop, bottom dot on mobile
+        local indSize   = mob and UDim2.new(0.5,0,0,2)  or UDim2.new(0,2,0.55,0)
+        local indPos    = mob and UDim2.new(0.25,0,1,-3) or UDim2.new(0,0,0.225,0)
         local ind = New("Frame", {
-            Size=UDim2.new(0,4,0.65,0), Position=UDim2.new(0,1,0.175,0),
+            Size=indSize, Position=indPos,
             BackgroundColor3=T.Acc, BackgroundTransparency=isFirst and 0 or 1,
             BorderSizePixel=0, ZIndex=4,
-        }, tabBtn)
-        Round(ind, 3)
-        -- Gradient + glow on indicator
-        Grad(ind, T.AccD, T.AccB, 180)
-        local indGlow = Instance.new("UIStroke")
-        indGlow.Color = T.AccB; indGlow.Thickness = 2; indGlow.Transparency = isFirst and 0.5 or 1
-        indGlow.Parent = ind
+        }, btn)
+        Round(ind, 2)
 
-        -- On mobile narrow sidebar: icon only (no text label)
-        local iconOnly = IsMobile and SIDE_W < 140
-
-        local icoOff = 12
-        if icon and icon ~= 0 then
-            local icoX = iconOnly and UDim2.new(0.5,0,0.5,0) or UDim2.new(0,12,0.5,0)
-            local icoAnchor = iconOnly and Vector2.new(0.5,0.5) or Vector2.new(0,0.5)
-            local ico = New("ImageLabel", {
-                Size=UDim2.new(0,18,0,18), Position=icoX,
-                AnchorPoint=icoAnchor, BackgroundTransparency=1,
+        local icoOff = mob and 0 or 10
+        local tabIco
+        if icon and icon ~= "" then
+            local icoSz = mob and 20 or 16
+            tabIco = New("ImageLabel", {
+                Size=UDim2.new(0,icoSz,0,icoSz),
+                Position=mob and UDim2.new(0.5,0,0.5, mob and -5 or 0)
+                             or UDim2.new(0,10,0.5,0),
+                AnchorPoint=mob and Vector2.new(0.5,0.5) or Vector2.new(0,0.5),
+                BackgroundTransparency=1,
                 ImageColor3=isFirst and T.AccB or T.TextM, ZIndex=4,
-            }, tabBtn)
-            ApplyIcon(ico, icon)
-            icoOff = 36
+            }, btn)
+            ApplyIcon(tabIco, icon)
+            if not mob then icoOff = 32 end
         end
 
         local lbl
-        if not iconOnly then
+        if mob then
+            -- Icon-only sidebar: show tiny name below
+            lbl = New("TextLabel", {
+                Size=UDim2.new(1,0,0,9), Position=UDim2.new(0,0,1,-11),
+                BackgroundTransparency=1, Text=name:sub(1,5),
+                TextColor3=isFirst and T.TextA or T.TextM,
+                TextSize=7, Font=Enum.Font.Gotham,
+                TextXAlignment=Enum.TextXAlignment.Center, ZIndex=4,
+            }, btn)
+        else
             lbl = New("TextLabel", {
                 Size=UDim2.new(1,-icoOff-6,1,0), Position=UDim2.new(0,icoOff,0,0),
                 BackgroundTransparency=1, Text=name,
                 TextColor3=isFirst and T.TextA or T.TextM,
-                TextSize= IsMobile and 11 or 13,
-                Font=isFirst and Enum.Font.GothamBold or Enum.Font.Gotham,
+                TextSize=12, Font=isFirst and Enum.Font.GothamBold or Enum.Font.Gotham,
                 TextXAlignment=Enum.TextXAlignment.Left, ZIndex=4,
-            }, tabBtn)
+            }, btn)
         end
 
+        -- Page (scrollable)
         local page = New("ScrollingFrame", {
             Size=UDim2.new(1,0,1,0), BackgroundTransparency=1,
-            BorderSizePixel=0, ScrollBarThickness=3,
-            ScrollBarImageColor3=T.Acc, ScrollBarImageTransparency=0.45,
+            BorderSizePixel=0, ScrollBarThickness=2,
+            ScrollBarImageColor3=T.Acc, ScrollBarImageTransparency=0.4,
             CanvasSize=UDim2.new(0,0,0,0), AutomaticCanvasSize=Enum.AutomaticSize.Y,
             Visible=isFirst,
         }, content)
-        local pageLayout = Instance.new("UIListLayout")
-        pageLayout.FillDirection = Enum.FillDirection.Vertical
-        pageLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-        pageLayout.Padding = UDim.new(0,5)
-        pageLayout.SortOrder = Enum.SortOrder.LayoutOrder
-        pageLayout.Parent = page
-        local pagePad = Instance.new("UIPadding")
-        pagePad.PaddingTop = UDim.new(0,12)
-        pagePad.PaddingBottom = UDim.new(0,18)
-        pagePad.PaddingLeft = UDim.new(0,12)
-        pagePad.PaddingRight = UDim.new(0,12)
-        pagePad.Parent = page
+        local pl = Instance.new("UIListLayout")
+        pl.FillDirection = Enum.FillDirection.Vertical
+        pl.HorizontalAlignment = Enum.HorizontalAlignment.Center
+        pl.Padding = UDim.new(0,4)
+        pl.SortOrder = Enum.SortOrder.LayoutOrder
+        pl.Parent = page
+        local pp = Instance.new("UIPadding")
+        pp.PaddingTop = UDim.new(0,10); pp.PaddingBottom = UDim.new(0,16)
+        pp.PaddingLeft = UDim.new(0,10); pp.PaddingRight = UDim.new(0,10)
+        pp.Parent = page
 
-        local Tab = {_page=page, _btn=tabBtn, _ind=ind, _lbl=lbl, _T=T, _n=0,
-                     _tabStroke=tabStroke, _indGlow=indGlow}
+        local Tab = {_page=page, _btn=btn, _ind=ind, _lbl=lbl, _ico=tabIco, _n=0}
         table.insert(self._tabs, Tab)
         if isFirst then self._activeTab = Tab end
 
-        local function SwitchToTab()
-            Ripple(tabBtn, T.Acc)
+        btn.MouseButton1Click:Connect(function()
+            Ripple(btn)
             if self._activeTab == Tab then return end
             for _, fn in ipairs(self._dropdowns) do pcall(fn) end
+            -- Deactivate old
             if self._activeTab then
-                local old = self._activeTab
-                Tween(old._btn, {BackgroundTransparency=1}, 0.2)
-                if old._tabStroke then Tween(old._tabStroke, {Transparency=1}, 0.2) end
-                Tween(old._ind, {BackgroundTransparency=1}, 0.2)
-                if old._indGlow then Tween(old._indGlow, {Transparency=1}, 0.2) end
-                if old._lbl then Tween(old._lbl, {TextColor3=T.TextM}, 0.2); old._lbl.Font = Enum.Font.Gotham end
-                old._page.Visible = false
+                local ot = self._activeTab
+                Tween(ot._btn, {BackgroundTransparency=1}, 0.15)
+                Tween(ot._ind, {BackgroundTransparency=1}, 0.15)
+                if ot._lbl then Tween(ot._lbl, {TextColor3=T.TextM}, 0.15) end
+                if ot._ico  then Tween(ot._ico,  {ImageColor3=T.TextM}, 0.15) end
+                if ot._lbl then ot._lbl.Font = Enum.Font.Gotham end
+                ot._page.Visible = false
             end
+            -- Activate new
             self._activeTab = Tab
             page.Visible = true
-            page.Position = UDim2.new(0.05,0,0,0)
-            Tween(page, {Position=UDim2.new(0,0,0,0)}, 0.22, Enum.EasingStyle.Quart)
-            Tween(tabBtn, {BackgroundTransparency=0.45, BackgroundColor3=T.SurfaceH}, 0.2)
-            Tween(tabStroke, {Transparency=0.45}, 0.2)
-            Tween(ind, {BackgroundTransparency=0}, 0.2)
-            Tween(indGlow, {Transparency=0.5}, 0.2)
-            if lbl then Tween(lbl, {TextColor3=T.TextA}, 0.2); lbl.Font = Enum.Font.GothamBold end
-            for _, ch in ipairs(tabBtn:GetChildren()) do
-                if ch:IsA("ImageLabel") then Tween(ch, {ImageColor3=T.AccB}, 0.2) end
-            end
-        end
+            page.CanvasPosition = Vector2.new(0,0)
+            Tween(btn, {BackgroundTransparency=0, BackgroundColor3=T.SurfaceH}, 0.18)
+            Tween(ind, {BackgroundTransparency=0}, 0.18)
+            if lbl then Tween(lbl, {TextColor3=T.TextA}, 0.18); lbl.Font = Enum.Font.GothamBold end
+            if tabIco then Tween(tabIco, {ImageColor3=T.AccB}, 0.18) end
+        end)
 
-        tabBtn.MouseButton1Click:Connect(SwitchToTab)
-        tabBtn.TouchTap:Connect(SwitchToTab)
-
-        tabBtn.MouseEnter:Connect(function()
-            if not IsMobile and self._activeTab ~= Tab then
-                Tween(tabBtn, {BackgroundTransparency=0.75, BackgroundColor3=T.SurfaceH}, 0.15)
+        btn.MouseEnter:Connect(function()
+            if self._activeTab ~= Tab then
+                Tween(btn, {BackgroundTransparency=0.82, BackgroundColor3=T.SurfaceH}, 0.1)
             end
         end)
-        tabBtn.MouseLeave:Connect(function()
-            if not IsMobile and self._activeTab ~= Tab then
-                Tween(tabBtn, {BackgroundTransparency=1}, 0.15)
+        btn.MouseLeave:Connect(function()
+            if self._activeTab ~= Tab then
+                Tween(btn, {BackgroundTransparency=1}, 0.1)
             end
         end)
 
-        -- -----------------------------------------------
+        -- ==========================================
         --  ELEMENT HELPERS
-        -- -----------------------------------------------
-        local function NextN()
-            Tab._n += 1
-            return Tab._n
-        end
+        -- ==========================================
+        local function N() Tab._n += 1; return Tab._n end
 
         local function Card(h, auto)
             local c = New("Frame", {
-                Size=UDim2.new(1,0,0,h or 50),
-                BackgroundColor3=T.Surface,
-                BackgroundTransparency=0.52,   -- deep glass
-                BorderSizePixel=0,
-                ZIndex=2, LayoutOrder=NextN(),
+                Size=UDim2.new(1,0,0,h or 48),
+                BackgroundColor3=T.Surface, BorderSizePixel=0,
+                ZIndex=2, LayoutOrder=N(),
                 AutomaticSize=auto and Enum.AutomaticSize.Y or Enum.AutomaticSize.None,
             }, page)
-            Round(c, 12)
-            -- Glass sheen + stroke via Glassify
-            local cs = Glassify(c, T.Border, 0.55, 0.93)
-            -- Horizontal top sheen line (bright edge highlight)
-            New("Frame", {
-                Size=UDim2.new(0.6,0,0,1), Position=UDim2.new(0.2,0,0,1),
-                BackgroundColor3=Color3.fromRGB(255,255,255),
-                BackgroundTransparency=0.72, BorderSizePixel=0, ZIndex=3,
+            Round(c, 8)
+            Stroke(c, T.Border, 1, 0.45)
+            -- Left accent sliver
+            local sliver = New("Frame", {
+                Size=UDim2.new(0,2,0.5,0), Position=UDim2.new(0,0,0.25,0),
+                BackgroundColor3=T.Acc, BackgroundTransparency=0.6, BorderSizePixel=0, ZIndex=3,
             }, c)
-            rawset(c, "_qs", cs)
+            Round(sliver, 1)
             return c
         end
 
-        local function HoverHit(c)
+        local function HoverCard(c)
             local hit = New("TextButton", {
                 Size=UDim2.new(1,0,1,0), BackgroundTransparency=1, Text="", ZIndex=c.ZIndex+5,
             }, c)
-            local cs = rawget(c, "_qs")
-            local function onEnter()
-                Tween(c, {BackgroundColor3=T.SurfaceH, BackgroundTransparency=0.35}, 0.15)
-                if cs then Tween(cs, {Color=T.Acc, Transparency=0.15}, 0.15) end
-            end
-            local function onLeave()
-                Tween(c, {BackgroundColor3=T.Surface, BackgroundTransparency=0.52}, 0.22)
-                if cs then Tween(cs, {Color=T.Border, Transparency=0.55}, 0.22) end
-            end
-            if not IsMobile then
-                hit.MouseEnter:Connect(onEnter)
-                hit.MouseLeave:Connect(onLeave)
-            else
-                hit.InputBegan:Connect(function(inp)
-                    if inp.UserInputType == Enum.UserInputType.Touch then onEnter() end
-                end)
-                hit.InputEnded:Connect(function(inp)
-                    if inp.UserInputType == Enum.UserInputType.Touch then
-                        task.delay(0.18, onLeave)
-                    end
-                end)
-            end
+            hit.MouseEnter:Connect(function() Tween(c, {BackgroundColor3=Qwenzy._T.SurfaceH}, 0.12) end)
+            hit.MouseLeave:Connect(function() Tween(c, {BackgroundColor3=Qwenzy._T.Surface},  0.12) end)
             return hit
         end
 
-        local function NameLbl(c, text)
+        local function NameLbl(c, txt)
             return New("TextLabel", {
-                Size=UDim2.new(1,-70,1,0), Position=UDim2.new(0,14,0,0),
-                BackgroundTransparency=1, Text=text,
-                TextColor3=T.TextP, TextSize=13, Font=Enum.Font.Gotham,
+                Size=UDim2.new(1,-64,1,0), Position=UDim2.new(0,12,0,0),
+                BackgroundTransparency=1, Text=txt,
+                TextColor3=T.TextP, TextSize=12, Font=Enum.Font.Gotham,
                 TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3,
             }, c)
         end
@@ -1397,79 +857,59 @@ function Qwenzy:CreateWindow(cfg)
         function Tab:CreateSection(name)
             Tab._n += 1
             local f = New("Frame", {
-                Size=UDim2.new(1,0,0,26), BackgroundTransparency=1,
+                Size=UDim2.new(1,0,0,20), BackgroundTransparency=1,
                 BorderSizePixel=0, LayoutOrder=Tab._n,
             }, page)
-            -- Accent pill dot
-            local dot = New("Frame", {
-                Size=UDim2.new(0,6,0,6), Position=UDim2.new(0,4,0.5,-3),
+            New("Frame", {
+                Size=UDim2.new(0,3,0,3), Position=UDim2.new(0,1,0.5,-1),
                 BackgroundColor3=T.Acc, BorderSizePixel=0, ZIndex=2,
             }, f)
-            Round(dot, 3)
-            -- Section glow dot pulse
-            task.spawn(function()
-                while dot and dot.Parent do
-                    Tween(dot, {BackgroundColor3=T.AccB, Size=UDim2.new(0,7,0,7)}, 0.9, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
-                    task.wait(0.9)
-                    Tween(dot, {BackgroundColor3=T.Acc, Size=UDim2.new(0,6,0,6)}, 0.9, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
-                    task.wait(0.9)
-                end
-            end)
             New("TextLabel", {
-                Size=UDim2.new(1,-16,1,0), Position=UDim2.new(0,14,0,0),
+                Size=UDim2.new(1,-12,1,0), Position=UDim2.new(0,10,0,0),
                 BackgroundTransparency=1, Text=name:upper(),
-                TextColor3=T.TextM, TextSize=10, Font=Enum.Font.GothamBold,
+                TextColor3=T.TextM, TextSize=9, Font=Enum.Font.GothamBold,
                 TextXAlignment=Enum.TextXAlignment.Left, ZIndex=2,
-                TextStrokeTransparency=0.9, TextStrokeColor3=T.Acc,
+                LetterSpacing=2,
             }, f)
-            -- Gradient divider line
-            local divF = New("Frame", {
+            New("Frame", {
                 Size=UDim2.new(1,0,0,1), Position=UDim2.new(0,0,1,-1),
-                BackgroundColor3=T.Acc, BackgroundTransparency=0, BorderSizePixel=0,
+                BackgroundColor3=T.Border, BackgroundTransparency=0.5, BorderSizePixel=0,
             }, f)
-            Grad(divF, T.Acc, T.BG, 90)
-            local o = {}
-            function o:Set() end
-            return o
+            local o = {}; function o:Set() end; return o
         end
 
         -- DIVIDER
         function Tab:CreateDivider()
             Tab._n += 1
             local d = New("Frame", {
-                Size=UDim2.new(1,-24,0,1), BackgroundColor3=T.Acc,
-                BackgroundTransparency=0.7, BorderSizePixel=0, LayoutOrder=Tab._n,
+                Size=UDim2.new(1,-20,0,1),
+                BackgroundColor3=T.Border, BackgroundTransparency=0.5,
+                BorderSizePixel=0, LayoutOrder=Tab._n,
             }, page)
-            Grad(d, T.Acc, T.BG, 90)
-            local o = {}
-            function o:Set(v) d.Visible = v end
-            return o
+            local o = {}; function o:Set(v) d.Visible=v end; return o
         end
 
         -- LABEL
         function Tab:CreateLabel(text, icon, color)
-            local c = Card(44)
-            local xOff = 14
+            local c = Card(42)
+            local xOff = 12
             if icon and icon ~= 0 then
                 local ico = New("ImageLabel", {
-                    Size=UDim2.new(0,18,0,18), Position=UDim2.new(0,13,0.5,0),
+                    Size=UDim2.new(0,16,0,16), Position=UDim2.new(0,12,0.5,0),
                     AnchorPoint=Vector2.new(0,0.5), BackgroundTransparency=1,
                     ImageColor3=color or T.TextS, ZIndex=3,
                 }, c)
                 ApplyIcon(ico, icon)
-                xOff = 37
+                xOff = 34
             end
             local lb = New("TextLabel", {
                 Size=UDim2.new(1,-xOff-8,1,0), Position=UDim2.new(0,xOff,0,0),
                 BackgroundTransparency=1, Text=text,
-                TextColor3=color or T.TextP, TextSize=13, Font=Enum.Font.Gotham,
+                TextColor3=color or T.TextP, TextSize=12, Font=Enum.Font.Gotham,
                 TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3,
             }, c)
             local o = {}
-            function o:Set(t,i,col)
-                lb.Text=t
-                if col then lb.TextColor3=col end
-            end
+            function o:Set(t, i, col) lb.Text=t; if col then lb.TextColor3=col end end
             return o
         end
 
@@ -1481,127 +921,102 @@ function Qwenzy:CreateWindow(cfg)
                 BackgroundTransparency=1,
             }, c)
             local ip = Instance.new("UIPadding")
-            ip.PaddingTop=UDim.new(0,12); ip.PaddingBottom=UDim.new(0,12)
-            ip.PaddingLeft=UDim.new(0,14); ip.PaddingRight=UDim.new(0,14)
+            ip.PaddingTop=UDim.new(0,10); ip.PaddingBottom=UDim.new(0,10)
+            ip.PaddingLeft=UDim.new(0,12); ip.PaddingRight=UDim.new(0,12)
             ip.Parent = inner
-            local tl = New("TextLabel", {
-                Size=UDim2.new(1,0,0,20), BackgroundTransparency=1,
-                Text=cfg_.Title or "", TextColor3=T.TextP, TextSize=14,
+            local tl2 = New("TextLabel", {
+                Size=UDim2.new(1,0,0,18), BackgroundTransparency=1,
+                Text=cfg_.Title or "", TextColor3=T.TextP, TextSize=13,
                 Font=Enum.Font.GothamBold, TextXAlignment=Enum.TextXAlignment.Left,
             }, inner)
             local bl = New("TextLabel", {
-                Size=UDim2.new(1,0,0,0), Position=UDim2.new(0,0,0,24),
+                Size=UDim2.new(1,0,0,0), Position=UDim2.new(0,0,0,20),
                 AutomaticSize=Enum.AutomaticSize.Y, BackgroundTransparency=1,
-                Text=cfg_.Content or "", TextColor3=T.TextS, TextSize=12,
-                Font=Enum.Font.Gotham, TextXAlignment=Enum.TextXAlignment.Left, TextWrapped=true,
+                Text=cfg_.Content or "", TextColor3=T.TextS, TextSize=11,
+                Font=Enum.Font.Gotham, TextXAlignment=Enum.TextXAlignment.Left,
+                TextWrapped=true, LineHeight=1.3,
             }, inner)
             local o = {}
-            function o:Set(nc) tl.Text=nc.Title or tl.Text; bl.Text=nc.Content or bl.Text end
+            function o:Set(nc) tl2.Text=nc.Title or tl2.Text; bl.Text=nc.Content or bl.Text end
             return o
         end
 
         -- BUTTON
         function Tab:CreateButton(cfg_)
-            local c = Card(48)
+            local c = Card(46)
             NameLbl(c, cfg_.Name or "Button")
-            local iconBtn = New("Frame", {
-                Size=UDim2.new(0,32,0,32), Position=UDim2.new(1,-46,0.5,0),
+            -- Run icon button
+            local ibg = New("Frame", {
+                Size=UDim2.new(0,30,0,30), Position=UDim2.new(1,-42,0.5,0),
                 AnchorPoint=Vector2.new(0,0.5), BackgroundColor3=T.Acc,
-                BackgroundTransparency=0.65, BorderSizePixel=0, ZIndex=3,
+                BackgroundTransparency=0.82, BorderSizePixel=0, ZIndex=3,
             }, c)
-            Round(iconBtn, 9)
-            local ibStroke = Instance.new("UIStroke")
-            ibStroke.Color = T.AccB; ibStroke.Thickness = 1; ibStroke.Transparency = 0.45
-            ibStroke.Parent = iconBtn
+            Round(ibg, 8)
             local ico = New("ImageLabel", {
-                Size=UDim2.new(0,16,0,16), Position=UDim2.new(0.5,0,0.5,0),
+                Size=UDim2.new(0,14,0,14), Position=UDim2.new(0.5,0,0.5,0),
                 AnchorPoint=Vector2.new(0.5,0.5), BackgroundTransparency=1,
                 ImageColor3=T.AccB, ZIndex=4,
-            }, iconBtn)
+            }, ibg)
             ApplyIcon(ico, "play")
-            local hit = HoverHit(c)
-            hit.InputBegan:Connect(function(inp)
-                if inp.UserInputType == Enum.UserInputType.MouseButton1
-                or inp.UserInputType == Enum.UserInputType.Touch then
-                    Ripple(c, T.AccB)
-                    Tween(iconBtn, {BackgroundTransparency=0.25, Size=UDim2.new(0,36,0,36)}, 0.1, Enum.EasingStyle.Back)
-                    Tween(ibStroke, {Transparency=0.05}, 0.1)
-                end
+
+            local hit = HoverCard(c)
+            hit.MouseButton1Down:Connect(function()
+                Ripple(c)
+                Tween(ibg, {BackgroundTransparency=0.4, Size=UDim2.new(0,34,0,34)}, 0.1)
             end)
-            hit.InputEnded:Connect(function(inp)
-                if inp.UserInputType == Enum.UserInputType.MouseButton1
-                or inp.UserInputType == Enum.UserInputType.Touch then
-                    Tween(iconBtn, {BackgroundTransparency=0.65, Size=UDim2.new(0,32,0,32)}, 0.2, Enum.EasingStyle.Back)
-                    Tween(ibStroke, {Transparency=0.45}, 0.2)
-                end
+            hit.MouseButton1Up:Connect(function()
+                Tween(ibg, {BackgroundTransparency=0.82, Size=UDim2.new(0,30,0,30)}, 0.14)
             end)
-            local function fireCallback()
-                Tween(ico, {ImageColor3=Color3.fromRGB(255,255,255)}, 0.06)
-                task.delay(0.06, function() Tween(ico, {ImageColor3=T.AccB}, 0.25) end)
+            hit.MouseButton1Click:Connect(function()
+                Tween(ico, {ImageColor3=Color3.fromRGB(255,255,255)}, 0.07)
+                task.delay(0.07, function() Tween(ico, {ImageColor3=Qwenzy._T.AccB}, 0.18) end)
                 if cfg_.Callback then task.spawn(cfg_.Callback) end
-            end
-            hit.MouseButton1Click:Connect(fireCallback)
-            hit.TouchTap:Connect(fireCallback)
-            local o = {}
-            function o:Set(n) end
-            return o
+            end)
+            local o = {}; function o:Set() end; return o
         end
 
         -- TOGGLE
         function Tab:CreateToggle(cfg_)
             local val = cfg_.CurrentValue or false
             Qwenzy.Flags[cfg_.Flag or ""] = val
-            local c = Card(48)
+            local c = Card(46)
             NameLbl(c, cfg_.Name or "Toggle")
+
             local track = New("Frame", {
-                Size=UDim2.new(0,46,0,26), Position=UDim2.new(1,-60,0.5,0),
+                Size=UDim2.new(0,44,0,24), Position=UDim2.new(1,-56,0.5,0),
                 AnchorPoint=Vector2.new(0,0.5),
                 BackgroundColor3=val and T.TOn or T.TOff,
-                BackgroundTransparency=val and 0.3 or 0.6,
                 BorderSizePixel=0, ZIndex=3,
             }, c)
-            Round(track, 13)
-            local trackStroke = Instance.new("UIStroke")
-            trackStroke.Color = val and T.TOn or T.Border
-            trackStroke.Thickness = 1
-            trackStroke.Transparency = val and 0.2 or 0.55
-            trackStroke.Parent = track
+            Round(track, 12)
+            Stroke(track, T.Border, 1, 0.35)
+
             local knob = New("Frame", {
-                Size=UDim2.new(0,20,0,20),
+                Size=UDim2.new(0,18,0,18),
                 Position=val and UDim2.new(0,23,0.5,0) or UDim2.new(0,3,0.5,0),
                 AnchorPoint=Vector2.new(0,0.5),
                 BackgroundColor3=Color3.fromRGB(255,255,255),
                 BorderSizePixel=0, ZIndex=4,
             }, track)
-            Round(knob, 10)
-            -- Knob glow when ON
-            local knobStroke = Instance.new("UIStroke")
-            knobStroke.Color = T.AccB
-            knobStroke.Thickness = 1
-            knobStroke.Transparency = val and 0.3 or 1
-            knobStroke.Parent = knob
-            local hit = HoverHit(c)
-            local function doToggle()
-                Ripple(c, val and T.TOn or T.AccB)
+            Round(knob, 9)
+
+            local hit = HoverCard(c)
+            hit.MouseButton1Click:Connect(function()
+                Ripple(c)
                 val = not val
-                Tween(track, {BackgroundColor3=val and T.TOn or T.TOff, BackgroundTransparency=val and 0.3 or 0.6}, 0.22)
-                Tween(trackStroke, {Color=val and T.TOn or T.Border, Transparency=val and 0.2 or 0.55}, 0.22)
-                Tween(knob, {Position=val and UDim2.new(0,23,0.5,0) or UDim2.new(0,3,0.5,0)}, 0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-                Tween(knob, {Size=UDim2.new(0,22,0,18)}, 0.08)
-                task.delay(0.08, function() Tween(knob, {Size=UDim2.new(0,20,0,20)}, 0.12, Enum.EasingStyle.Back) end)
-                Tween(knobStroke, {Transparency=val and 0.3 or 1}, 0.22)
+                Tween(track, {BackgroundColor3=val and Qwenzy._T.TOn or Qwenzy._T.TOff}, 0.2)
+                Tween(knob, {Position=val and UDim2.new(0,23,0.5,0) or UDim2.new(0,3,0.5,0)}, 0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+                Tween(knob, {Size=UDim2.new(0,20,0,16)}, 0.07)
+                task.delay(0.07, function() Tween(knob, {Size=UDim2.new(0,18,0,18)}, 0.1, Enum.EasingStyle.Back) end)
                 Qwenzy.Flags[cfg_.Flag or ""] = val
                 if cfg_.Callback then task.spawn(cfg_.Callback, val) end
-            end
-            hit.MouseButton1Click:Connect(doToggle)
-            hit.TouchTap:Connect(doToggle)
+            end)
+
             local o = {CurrentValue=val}
             function o:Set(v)
                 val=v; o.CurrentValue=v
-                Tween(track, {BackgroundColor3=v and T.TOn or T.TOff, BackgroundTransparency=v and 0.3 or 0.6}, 0.22)
-                Tween(trackStroke, {Color=v and T.TOn or T.Border, Transparency=v and 0.2 or 0.55}, 0.22)
-                Tween(knob, {Position=v and UDim2.new(0,23,0.5,0) or UDim2.new(0,3,0.5,0)}, 0.25)
-                Tween(knobStroke, {Transparency=v and 0.3 or 1}, 0.22)
+                Tween(track, {BackgroundColor3=v and Qwenzy._T.TOn or Qwenzy._T.TOff}, 0.2)
+                Tween(knob, {Position=v and UDim2.new(0,23,0.5,0) or UDim2.new(0,3,0.5,0)}, 0.22)
                 Qwenzy.Flags[cfg_.Flag or ""] = v
                 if cfg_.Callback then task.spawn(cfg_.Callback, v) end
             end
@@ -1614,101 +1029,88 @@ function Qwenzy:CreateWindow(cfg)
             local maxV = cfg_.Range and cfg_.Range[2] or 100
             local incr = cfg_.Increment or 1
             local suf  = cfg_.Suffix or ""
-            local val  = cfg_.CurrentValue or minV
+            local val  = math.clamp(cfg_.CurrentValue or minV, minV, maxV)
             Qwenzy.Flags[cfg_.Flag or ""] = val
 
-            -- Taller card on mobile so the track has more finger room
-            local c = Card(IsMobile and 72 or 62)
+            local c = Card(60)
             New("TextLabel", {
-                Size=UDim2.new(0.65,0,0,22), Position=UDim2.new(0,14,0,8),
+                Size=UDim2.new(0.6,0,0,20), Position=UDim2.new(0,12,0,8),
                 BackgroundTransparency=1, Text=cfg_.Name or "Slider",
-                TextColor3=T.TextP, TextSize=13, Font=Enum.Font.Gotham,
+                TextColor3=T.TextP, TextSize=12, Font=Enum.Font.Gotham,
                 TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3,
             }, c)
             local valLbl = New("TextLabel", {
-                Size=UDim2.new(0.35,-14,0,22), Position=UDim2.new(0.65,0,0,8),
+                Size=UDim2.new(0.4,-12,0,20), Position=UDim2.new(0.6,0,0,8),
                 BackgroundTransparency=1, Text=tostring(val).." "..suf,
-                TextColor3=T.TextA, TextSize=13, Font=Enum.Font.GothamBold,
+                TextColor3=T.TextA, TextSize=12, Font=Enum.Font.GothamBold,
                 TextXAlignment=Enum.TextXAlignment.Right, ZIndex=3,
             }, c)
 
-            -- Thicker track on mobile (easier to see & tap)
-            local trackH = IsMobile and 8 or 6
-            local trackY = IsMobile and 44 or 39
-            local tbg = New("Frame", {
-                Size=UDim2.new(1,-28,0,trackH), Position=UDim2.new(0,14,0,trackY),
+            local track = New("Frame", {
+                Size=UDim2.new(1,-24,0,5), Position=UDim2.new(0,12,0,36),
                 BackgroundColor3=T.BGS, BorderSizePixel=0, ZIndex=3,
             }, c)
-            Round(tbg, trackH/2)
+            Round(track, 3)
             local pct = (val-minV)/(maxV-minV)
-            local tfill = New("Frame", {
+            local fill = New("Frame", {
                 Size=UDim2.new(pct,0,1,0), BackgroundColor3=T.Acc, BorderSizePixel=0, ZIndex=4,
-            }, tbg)
-            Round(tfill, trackH/2)
-            Grad(tfill, T.Acc, T.AccB, 90)
-
-            -- Bigger knob on mobile
-            local knobSz = IsMobile and 24 or 16
-            local tknob = New("Frame", {
-                Size=UDim2.new(0,knobSz,0,knobSz), Position=UDim2.new(pct,0,0.5,0),
-                AnchorPoint=Vector2.new(0.5,0.5), BackgroundColor3=Color3.fromRGB(255,255,255),
-                BorderSizePixel=0, ZIndex=5,
-            }, tbg)
-            Round(tknob, knobSz/2)
-            Stroke(tknob, T.Acc, 2, 0.15)
+            }, track)
+            Round(fill, 3)
+            local knob = New("Frame", {
+                Size=UDim2.new(0,14,0,14),
+                Position=UDim2.new(pct,0,0.5,0), AnchorPoint=Vector2.new(0.5,0.5),
+                BackgroundColor3=Color3.fromRGB(240,245,255), BorderSizePixel=0, ZIndex=5,
+            }, track)
+            Round(knob, 7)
+            Stroke(knob, T.Acc, 1.5, 0.2)
 
             local draggingS = false
             local function Update(mx)
-                local relX = math.clamp(mx - tbg.AbsolutePosition.X, 0, tbg.AbsoluteSize.X)
-                local p = relX / tbg.AbsoluteSize.X
+                local rel = math.clamp(mx - track.AbsolutePosition.X, 0, track.AbsoluteSize.X)
+                local p = rel / track.AbsoluteSize.X
                 local raw = minV + p*(maxV-minV)
                 local stepped = math.clamp(math.round(raw/incr)*incr, minV, maxV)
                 if stepped == val then return end
                 val = stepped
                 local np = (stepped-minV)/(maxV-minV)
-                Tween(tfill, {Size=UDim2.new(np,0,1,0)}, 0.04)
-                Tween(tknob, {Position=UDim2.new(np,0,0.5,0)}, 0.04)
+                Tween(fill, {Size=UDim2.new(np,0,1,0)}, 0.04)
+                Tween(knob, {Position=UDim2.new(np,0,0.5,0)}, 0.04)
                 valLbl.Text = tostring(stepped).." "..suf
                 Qwenzy.Flags[cfg_.Flag or ""] = stepped
                 if cfg_.Callback then task.spawn(cfg_.Callback, stepped) end
             end
 
-            -- Large invisible hit area — covers the full card height for easy touch
             local shb = New("TextButton", {
-                Size=UDim2.new(1,0,1,0), Position=UDim2.new(0,0,0,0),
+                Size=UDim2.new(1,0,1,28), Position=UDim2.new(0,0,0,-14),
                 BackgroundTransparency=1, Text="", ZIndex=6,
-            }, c)
-
-            -- Start drag on mouse OR touch
+            }, track)
             shb.InputBegan:Connect(function(inp)
-                if inp.UserInputType == Enum.UserInputType.MouseButton1
-                or inp.UserInputType == Enum.UserInputType.Touch then
+                if inp.UserInputType == Enum.UserInputType.MouseButton1 or
+                   inp.UserInputType == Enum.UserInputType.Touch then
                     draggingS = true
-                    local bigSz = knobSz + 6
-                    Tween(tknob, {Size=UDim2.new(0,bigSz,0,bigSz)}, 0.1, Enum.EasingStyle.Back)
-                    local px = inp.UserInputType == Enum.UserInputType.Touch and inp.Position.X or Mouse.X
-                    Update(px)
+                    Tween(knob, {Size=UDim2.new(0,17,0,17)}, 0.1, Enum.EasingStyle.Back)
+                    Update(inp.Position.X)
                 end
             end)
-
-            Track(UserInputService.InputEnded:Connect(function(inp)
-                if (inp.UserInputType == Enum.UserInputType.MouseButton1
-                 or inp.UserInputType == Enum.UserInputType.Touch) and draggingS then
-                    draggingS = false
-                    Tween(tknob, {Size=UDim2.new(0,knobSz,0,knobSz)}, 0.12)
+            UserInputService.InputEnded:Connect(function(inp)
+                if inp.UserInputType == Enum.UserInputType.MouseButton1 or
+                   inp.UserInputType == Enum.UserInputType.Touch then
+                    if draggingS then
+                        draggingS = false
+                        Tween(knob, {Size=UDim2.new(0,14,0,14)}, 0.1)
+                    end
                 end
-            end))
-
-            Track(RunService.RenderStepped:Connect(function()
-                if draggingS then Update(CursorX()) end
-            end))
+            end)
+            RunService.RenderStepped:Connect(function()
+                if draggingS then Update(Mouse.X) end
+            end)
 
             local o = {CurrentValue=val}
             function o:Set(v)
                 v=math.clamp(v,minV,maxV); val=v; o.CurrentValue=v
                 local np=(v-minV)/(maxV-minV)
-                Tween(tfill,{Size=UDim2.new(np,0,1,0)},0.2)
-                Tween(tknob,{Position=UDim2.new(np,0,0.5,0)},0.2)
+                Tween(fill,{Size=UDim2.new(np,0,1,0)},0.2)
+                Tween(knob,{Position=UDim2.new(np,0,0.5,0)},0.2)
                 valLbl.Text=tostring(v).." "..suf
                 Qwenzy.Flags[cfg_.Flag or ""]=v
                 if cfg_.Callback then task.spawn(cfg_.Callback,v) end
@@ -1718,41 +1120,40 @@ function Qwenzy:CreateWindow(cfg)
 
         -- INPUT
         function Tab:CreateInput(cfg_)
-            local initT = cfg_.CurrentValue or ""
-            local c = Card(64)
+            local c = Card(62)
             New("TextLabel", {
-                Size=UDim2.new(1,-14,0,22), Position=UDim2.new(0,14,0,6),
+                Size=UDim2.new(1,-14,0,20), Position=UDim2.new(0,12,0,5),
                 BackgroundTransparency=1, Text=cfg_.Name or "Input",
-                TextColor3=T.TextP, TextSize=13, Font=Enum.Font.Gotham,
+                TextColor3=T.TextP, TextSize=12, Font=Enum.Font.Gotham,
                 TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3,
             }, c)
             local ibg = New("Frame", {
-                Size=UDim2.new(1,-28,0,30), Position=UDim2.new(0,14,0,30),
+                Size=UDim2.new(1,-24,0,28), Position=UDim2.new(0,12,0,27),
                 BackgroundColor3=T.BGS, BorderSizePixel=0, ZIndex=3,
             }, c)
-            Round(ibg, 9)
-            local ibStroke = Stroke(ibg, T.Border, 1, 0.45)
+            Round(ibg, 7)
+            local ibStr = Stroke(ibg, T.Border, 1, 0.4)
             local ibox = New("TextBox", {
-                Size=UDim2.new(1,-16,1,0), Position=UDim2.new(0,8,0,0),
-                BackgroundTransparency=1, Text=initT,
-                PlaceholderText=cfg_.PlaceholderText or "Type here...",
+                Size=UDim2.new(1,-14,1,0), Position=UDim2.new(0,7,0,0),
+                BackgroundTransparency=1, Text=cfg_.CurrentValue or "",
+                PlaceholderText=cfg_.PlaceholderText or "...",
                 TextColor3=T.TextP, PlaceholderColor3=T.TextM,
-                TextSize=13, Font=Enum.Font.Gotham,
+                TextSize=12, Font=Enum.Font.Gotham,
                 ClearTextOnFocus=false, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=4,
             }, ibg)
             ibox.Focused:Connect(function()
-                Tween(ibg, {BackgroundColor3=T.SurfaceH}, 0.15)
-                Tween(ibStroke, {Color=T.Acc, Transparency=0.2}, 0.15)
+                Tween(ibg, {BackgroundColor3=T.SurfaceH}, 0.12)
+                Tween(ibStr, {Color=T.Acc, Transparency=0.15}, 0.12)
             end)
             ibox.FocusLost:Connect(function()
-                Tween(ibg, {BackgroundColor3=T.BGS}, 0.15)
-                Tween(ibStroke, {Color=T.Border, Transparency=0.45}, 0.15)
+                Tween(ibg, {BackgroundColor3=T.BGS}, 0.12)
+                Tween(ibStr, {Color=T.Border, Transparency=0.4}, 0.12)
                 local txt = ibox.Text
                 if cfg_.RemoveTextAfterFocusLost then ibox.Text="" end
                 Qwenzy.Flags[cfg_.Flag or ""] = txt
                 if cfg_.Callback then task.spawn(cfg_.Callback, txt) end
             end)
-            local o = {CurrentValue=initT}
+            local o = {CurrentValue=cfg_.CurrentValue or ""}
             function o:Set(t) ibox.Text=t; o.CurrentValue=t end
             return o
         end
@@ -1760,106 +1161,105 @@ function Qwenzy:CreateWindow(cfg)
         -- COLOR PICKER
         function Tab:CreateColorPicker(cfg_)
             local initC = cfg_.Color or Color3.fromRGB(255,100,100)
-            local hue, sat, val_ = initC:ToHSV()
+            local hue, sat, bri = initC:ToHSV()
             local collapsed = true
-            local WHEEL = 148
-            local BH = 18
-            local expandH = 52 + WHEEL + 10 + BH + 20
+            local WH = 144
+            local BH = 16
+            local EXP_H = 50 + WH + 10 + BH + 20
 
-            local c = Card(48)
+            local c = Card(46)
             c.ClipsDescendants = true
-
             NameLbl(c, cfg_.Name or "Color")
 
             local swatch = New("Frame", {
-                Size=UDim2.new(0,34,0,22), Position=UDim2.new(1,-48,0.5,0),
+                Size=UDim2.new(0,30,0,20), Position=UDim2.new(1,-44,0.5,0),
                 AnchorPoint=Vector2.new(0,0.5), BackgroundColor3=initC,
                 BorderSizePixel=0, ZIndex=3,
             }, c)
-            Round(swatch, 6)
-            Stroke(swatch, T.Border, 1, 0.3)
+            Round(swatch, 5)
+            Stroke(swatch, T.Border, 1, 0.25)
 
             local chev = New("TextLabel", {
-                Size=UDim2.new(0,16,0,16), Position=UDim2.new(1,-16,0.5,0),
+                Size=UDim2.new(0,14,0,14), Position=UDim2.new(1,-12,0.5,0),
                 AnchorPoint=Vector2.new(1,0.5), BackgroundTransparency=1,
-                Text="v", TextColor3=T.TextM, TextSize=11, Font=Enum.Font.GothamBold,
+                Text="v", TextColor3=T.TextM, TextSize=10, Font=Enum.Font.GothamBold,
                 TextXAlignment=Enum.TextXAlignment.Center, ZIndex=3,
             }, c)
 
             local picker = New("Frame", {
-                Size=UDim2.new(1,-28,0,WHEEL+BH+22), Position=UDim2.new(0,14,0,52),
+                Size=UDim2.new(1,-24,0,WH+BH+18), Position=UDim2.new(0,12,0,50),
                 BackgroundTransparency=1, BorderSizePixel=0, ZIndex=3, Visible=false,
             }, c)
 
+            -- Wheel
             local wheelClip = New("Frame", {
-                Size=UDim2.new(0,WHEEL,0,WHEEL), Position=UDim2.new(0.5,0,0,0),
-                AnchorPoint=Vector2.new(0.5,0), BackgroundColor3=Color3.fromRGB(10,10,10),
+                Size=UDim2.new(0,WH,0,WH), Position=UDim2.new(0.5,0,0,0),
+                AnchorPoint=Vector2.new(0.5,0), BackgroundColor3=Color3.fromRGB(0,0,0),
                 BorderSizePixel=0, ZIndex=10,
             }, picker)
-            Round(wheelClip, WHEEL/2)
-
+            Round(wheelClip, WH/2)
             New("ImageLabel", {
                 Size=UDim2.new(1,0,1,0), BackgroundTransparency=1,
                 Image="rbxassetid://109617510791865",
-                ImageColor3=Color3.fromRGB(255,255,255),
                 ScaleType=Enum.ScaleType.Fit, ZIndex=11,
             }, wheelClip)
-
             local darkOv = New("Frame", {
                 Size=UDim2.new(1,0,1,0), BackgroundColor3=Color3.fromRGB(0,0,0),
-                BackgroundTransparency=val_, BorderSizePixel=0, ZIndex=12,
+                BackgroundTransparency=bri, BorderSizePixel=0, ZIndex=12,
             }, wheelClip)
-            Round(darkOv, WHEEL/2)
+            Round(darkOv, WH/2)
 
             local function WheelPos(h, s)
-                local angle = (h - 0.25) * 2 * math.pi
-                local radius = (WHEEL/2 - 8) * s
-                return UDim2.new(0, WHEEL/2 + radius*math.cos(angle), 0, WHEEL/2 + radius*math.sin(angle))
+                local angle = math.pi + h * 2 * math.pi
+                local r = (WH/2-7)*s
+                return UDim2.new(0, WH/2+r*math.cos(angle), 0, WH/2+r*math.sin(angle))
             end
 
-            local wcursor = New("Frame", {
-                Size=UDim2.new(0,18,0,18), Position=WheelPos(hue,sat),
-                AnchorPoint=Vector2.new(0.5,0.5), BackgroundColor3=Color3.fromRGB(255,255,255),
+            local wCur = New("Frame", {
+                Size=UDim2.new(0,16,0,16), Position=WheelPos(hue,sat),
+                AnchorPoint=Vector2.new(0.5,0.5),
+                BackgroundColor3=Color3.fromRGB(255,255,255),
                 BorderSizePixel=0, ZIndex=14,
             }, wheelClip)
-            Round(wcursor, 9)
-            Stroke(wcursor, Color3.fromRGB(20,20,20), 2, 0)
-            local wdot = New("Frame", {
-                Size=UDim2.new(0,10,0,10), Position=UDim2.new(0.5,0,0.5,0),
+            Round(wCur, 8)
+            Stroke(wCur, Color3.fromRGB(0,0,0), 2, 0)
+            local wDot = New("Frame", {
+                Size=UDim2.new(0,8,0,8), Position=UDim2.new(0.5,0,0.5,0),
                 AnchorPoint=Vector2.new(0.5,0.5), BackgroundColor3=initC,
                 BorderSizePixel=0, ZIndex=15,
-            }, wcursor)
-            Round(wdot, 5)
-            New("TextButton", {
-                Size=UDim2.new(1,0,1,0), BackgroundTransparency=1, Text="", ZIndex=16,
-            }, wheelClip)
+            }, wCur)
+            Round(wDot, 4)
+            New("TextButton", {Size=UDim2.new(1,0,1,0), BackgroundTransparency=1, Text="", ZIndex=16}, wheelClip)
 
-            local brightTrack = New("Frame", {
-                Size=UDim2.new(1,0,0,BH), Position=UDim2.new(0,0,0,WHEEL+10),
+            -- Brightness bar
+            local briTrack = New("Frame", {
+                Size=UDim2.new(1,0,0,BH), Position=UDim2.new(0,0,0,WH+8),
                 BackgroundColor3=Color3.fromRGB(0,0,0), BorderSizePixel=0, ZIndex=10,
             }, picker)
-            Round(brightTrack, BH/2)
+            Round(briTrack, BH/2)
             local bGrad = Instance.new("UIGradient")
             bGrad.Color = ColorSequence.new(Color3.fromRGB(0,0,0), Color3.fromHSV(hue,1,1))
             bGrad.Rotation = 0
-            bGrad.Parent = brightTrack
-            local bcursor = New("Frame", {
-                Size=UDim2.new(0,BH+2,0,BH+2), Position=UDim2.new(val_,0,0.5,0),
-                AnchorPoint=Vector2.new(0.5,0.5), BackgroundColor3=Color3.fromRGB(255,255,255),
+            bGrad.Parent = briTrack
+            local bCur = New("Frame", {
+                Size=UDim2.new(0,BH+2,0,BH+2), Position=UDim2.new(bri,0,0.5,0),
+                AnchorPoint=Vector2.new(0.5,0.5),
+                BackgroundColor3=Color3.fromRGB(255,255,255),
                 BorderSizePixel=0, ZIndex=12,
-            }, brightTrack)
-            Round(bcursor, (BH+2)/2)
-            Stroke(bcursor, Color3.fromRGB(30,30,30), 1.5, 0)
+            }, briTrack)
+            Round(bCur, (BH+2)/2)
+            Stroke(bCur, Color3.fromRGB(20,20,20), 1.5, 0)
             New("TextButton", {
                 Size=UDim2.new(1,0,1,14), Position=UDim2.new(0,0,0,-7),
                 BackgroundTransparency=1, Text="", ZIndex=13,
-            }, brightTrack)
+            }, briTrack)
 
             local hexLbl = New("TextLabel", {
-                Size=UDim2.new(1,0,0,14), Position=UDim2.new(0,0,0,WHEEL+32),
+                Size=UDim2.new(1,0,0,12), Position=UDim2.new(0,0,0,WH+28),
                 BackgroundTransparency=1,
-                Text=string.format("#%02X%02X%02X", math.floor(initC.R*255), math.floor(initC.G*255), math.floor(initC.B*255)),
-                TextColor3=T.TextM, TextSize=11, Font=Enum.Font.Code,
+                Text=string.format("#%02X%02X%02X",
+                    math.floor(initC.R*255),math.floor(initC.G*255),math.floor(initC.B*255)),
+                TextColor3=T.TextM, TextSize=10, Font=Enum.Font.Code,
                 TextXAlignment=Enum.TextXAlignment.Center, ZIndex=10,
             }, picker)
 
@@ -1867,79 +1267,70 @@ function Qwenzy:CreateWindow(cfg)
             local dragW, dragB = false, false
 
             local function UpdateColor()
-                curColor = Color3.fromHSV(hue, sat, val_)
+                curColor = Color3.fromHSV(hue, sat, bri)
                 swatch.BackgroundColor3 = curColor
-                wdot.BackgroundColor3 = curColor
-                darkOv.BackgroundTransparency = val_
-                wcursor.Position = WheelPos(hue, sat)
-                bcursor.Position = UDim2.new(val_,0,0.5,0)
+                wDot.BackgroundColor3 = curColor
+                darkOv.BackgroundTransparency = bri
+                wCur.Position = WheelPos(hue, sat)
+                bCur.Position = UDim2.new(bri,0,0.5,0)
                 bGrad.Color = ColorSequence.new(Color3.fromRGB(0,0,0), Color3.fromHSV(hue,1,1))
-                hexLbl.Text = string.format("#%02X%02X%02X", math.floor(curColor.R*255), math.floor(curColor.G*255), math.floor(curColor.B*255))
+                hexLbl.Text = string.format("#%02X%02X%02X",
+                    math.floor(curColor.R*255),math.floor(curColor.G*255),math.floor(curColor.B*255))
                 Qwenzy.Flags[cfg_.Flag or ""] = curColor
                 if cfg_.Callback then task.spawn(cfg_.Callback, curColor) end
             end
 
             local function PickWheel(mx, my)
-                local cx = wheelClip.AbsolutePosition.X + WHEEL/2
-                local cy = wheelClip.AbsolutePosition.Y + WHEEL/2
+                local cx = wheelClip.AbsolutePosition.X + WH/2
+                local cy = wheelClip.AbsolutePosition.Y + WH/2
                 local dx, dy = mx-cx, my-cy
-                sat = math.min(math.sqrt(dx*dx+dy*dy) / (WHEEL/2-4), 1)
-                hue = ((math.atan2(dy,dx)/(2*math.pi)) + 0.25) % 1
+                sat = math.min(math.sqrt(dx*dx+dy*dy)/(WH/2-4), 1)
+                hue = (math.atan2(dy,dx) / (2*math.pi) + 0.5) % 1
                 UpdateColor()
             end
 
-            local wheelHitBtn = wheelClip:FindFirstChildWhichIsA("TextButton")
-            if wheelHitBtn then
-                wheelHitBtn.InputBegan:Connect(function(inp)
-                    if inp.UserInputType == Enum.UserInputType.MouseButton1
-                    or inp.UserInputType == Enum.UserInputType.Touch then
-                        dragW = true
-                        local px = inp.UserInputType == Enum.UserInputType.Touch and inp.Position.X or Mouse.X
-                        local py = inp.UserInputType == Enum.UserInputType.Touch and inp.Position.Y or Mouse.Y
-                        PickWheel(px, py)
+            local wHit = wheelClip:FindFirstChildWhichIsA("TextButton")
+            local bHit = briTrack:FindFirstChildWhichIsA("TextButton")
+            if wHit then
+                wHit.InputBegan:Connect(function(inp)
+                    if inp.UserInputType==Enum.UserInputType.MouseButton1 or inp.UserInputType==Enum.UserInputType.Touch then
+                        dragW=true; PickWheel(inp.Position.X, inp.Position.Y)
                     end
                 end)
             end
-            local brightHitBtn = brightTrack:FindFirstChildWhichIsA("TextButton")
-            if brightHitBtn then
-                brightHitBtn.InputBegan:Connect(function(inp)
-                    if inp.UserInputType == Enum.UserInputType.MouseButton1
-                    or inp.UserInputType == Enum.UserInputType.Touch then
-                        dragB = true
-                        local px = inp.UserInputType == Enum.UserInputType.Touch and inp.Position.X or Mouse.X
-                        val_ = math.clamp((px - brightTrack.AbsolutePosition.X) / brightTrack.AbsoluteSize.X, 0, 1)
-                        UpdateColor()
+            if bHit then
+                bHit.InputBegan:Connect(function(inp)
+                    if inp.UserInputType==Enum.UserInputType.MouseButton1 or inp.UserInputType==Enum.UserInputType.Touch then
+                        dragB=true
                     end
                 end)
             end
-
-            Track(UserInputService.InputEnded:Connect(function(i)
-                if i.UserInputType == Enum.UserInputType.MouseButton1
-                or i.UserInputType == Enum.UserInputType.Touch then
-                    dragW = false; dragB = false
+            UserInputService.InputEnded:Connect(function(inp)
+                if inp.UserInputType==Enum.UserInputType.MouseButton1 or inp.UserInputType==Enum.UserInputType.Touch then
+                    dragW=false; dragB=false
                 end
-            end))
-            Track(RunService.RenderStepped:Connect(function()
-                if dragW then PickWheel(CursorX(), CursorY()) end
+            end)
+            RunService.RenderStepped:Connect(function()
+                if dragW then PickWheel(Mouse.X, Mouse.Y) end
                 if dragB then
-                    val_ = math.clamp((CursorX() - brightTrack.AbsolutePosition.X) / brightTrack.AbsoluteSize.X, 0, 1)
+                    bri = math.clamp((Mouse.X-briTrack.AbsolutePosition.X)/briTrack.AbsoluteSize.X,0,1)
                     UpdateColor()
                 end
-            end))
+            end)
 
-            local headerHit = New("TextButton", {
-                Size=UDim2.new(1,0,0,48), BackgroundTransparency=1, Text="", ZIndex=c.ZIndex+4,
+            local hdrHit = New("TextButton", {
+                Size=UDim2.new(1,0,0,46), BackgroundTransparency=1, Text="", ZIndex=c.ZIndex+4,
             }, c)
-            headerHit.MouseButton1Click:Connect(function()
+            hdrHit.MouseButton1Click:Connect(function()
                 collapsed = not collapsed
                 if not collapsed then
                     picker.Visible = true
-                    Tween(c, {Size=UDim2.new(1,0,0,expandH)}, 0.3, Enum.EasingStyle.Quart)
+                    Tween(c, {Size=UDim2.new(1,0,0,EXP_H)}, 0.28, Enum.EasingStyle.Quart)
                     Tween(chev, {Rotation=180}, 0.22)
                 else
-                    Tween(c, {Size=UDim2.new(1,0,0,48)}, 0.25, Enum.EasingStyle.Quart)
+                    Tween(c, {Size=UDim2.new(1,0,0,46)}, 0.22, Enum.EasingStyle.Quart)
                     Tween(chev, {Rotation=0}, 0.22)
-                    task.delay(0.25, function() if picker then picker.Visible=false end end)
+                    task.delay(0.22, function() if picker then picker.Visible=false end end)
                 end
             end)
 
@@ -1947,7 +1338,7 @@ function Qwenzy:CreateWindow(cfg)
             function o:Set(col)
                 curColor=col; o.CurrentColor=col
                 swatch.BackgroundColor3=col
-                hue,sat,val_=col:ToHSV()
+                hue,sat,bri=col:ToHSV()
                 UpdateColor()
                 if cfg_.Callback then task.spawn(cfg_.Callback,col) end
             end
@@ -1956,56 +1347,64 @@ function Qwenzy:CreateWindow(cfg)
 
         -- DROPDOWN
         function Tab:CreateDropdown(cfg_)
-            local opts = cfg_.Options or {}
-            local multi = cfg_.MultipleOptions or false
-            local initS = cfg_.CurrentOption or {}
+            local opts   = cfg_.Options or {}
+            local multi  = cfg_.MultipleOptions or false
+            local initS  = cfg_.CurrentOption or {}
             local selected = {}
-            for _, v in ipairs(initS) do selected[v] = true end
+            for _, v in ipairs(initS) do selected[v]=true end
 
             local open = false
-            local c = Card(56)
+            local c = Card(54)
             c.ZIndex = 5
             c.ClipsDescendants = false
 
             New("TextLabel", {
-                Size=UDim2.new(1,-14,0,22), Position=UDim2.new(0,14,0,6),
+                Size=UDim2.new(1,-12,0,20), Position=UDim2.new(0,12,0,5),
                 BackgroundTransparency=1, Text=cfg_.Name or "Dropdown",
-                TextColor3=T.TextP, TextSize=13, Font=Enum.Font.Gotham,
+                TextColor3=T.TextP, TextSize=12, Font=Enum.Font.Gotham,
                 TextXAlignment=Enum.TextXAlignment.Left, ZIndex=6,
             }, c)
 
             local dbg = New("Frame", {
-                Size=UDim2.new(1,-28,0,28), Position=UDim2.new(0,14,0,28),
+                Size=UDim2.new(1,-24,0,26), Position=UDim2.new(0,12,0,25),
                 BackgroundColor3=T.BGS, BorderSizePixel=0, ZIndex=6,
             }, c)
-            Round(dbg, 9)
-            Stroke(dbg, T.Border, 1, 0.45)
+            Round(dbg, 7)
+            Stroke(dbg, T.Border, 1, 0.4)
 
             local dispLbl = New("TextLabel", {
-                Size=UDim2.new(1,-32,1,0), Position=UDim2.new(0,10,0,0),
+                Size=UDim2.new(1,-28,1,0), Position=UDim2.new(0,8,0,0),
                 BackgroundTransparency=1,
                 Text=#initS>0 and table.concat(initS,", ") or "Select...",
                 TextColor3=#initS>0 and T.TextP or T.TextM,
-                TextSize=12, Font=Enum.Font.Gotham,
-                TextXAlignment=Enum.TextXAlignment.Left, TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=7,
+                TextSize=11, Font=Enum.Font.Gotham,
+                TextXAlignment=Enum.TextXAlignment.Left,
+                TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=7,
             }, dbg)
 
             local arrow = New("TextLabel", {
-                Size=UDim2.new(0,18,1,0), Position=UDim2.new(1,-20,0,0),
-                BackgroundTransparency=1, Text="v", TextColor3=T.TextM,
-                TextSize=11, Font=Enum.Font.GothamBold, TextXAlignment=Enum.TextXAlignment.Center, ZIndex=7,
+                Size=UDim2.new(0,16,1,0), Position=UDim2.new(1,-18,0,0),
+                BackgroundTransparency=1, Text="v",
+                TextColor3=T.TextM, TextSize=10, Font=Enum.Font.GothamBold,
+                TextXAlignment=Enum.TextXAlignment.Center, ZIndex=7,
             }, dbg)
 
+            -- List - parented to ROOT so it always floats above everything
+            local _ddSG = New("ScreenGui", {
+                ResetOnSpawn=false, ZIndexBehavior=Enum.ZIndexBehavior.Sibling,
+                IgnoreGuiInset=true, DisplayOrder=999,
+            }, ROOT)
             local listOuter = New("Frame", {
-                Size=UDim2.new(0,100,0,0), BackgroundTransparency=1,
-                BorderSizePixel=0, ZIndex=200, ClipsDescendants=true, Visible=false,
-            }, sg)
+                Size=UDim2.new(0,100,0,0), BackgroundColor3=T.Panel,
+                BorderSizePixel=0, ClipsDescendants=false, Visible=false,
+            }, _ddSG)
+            Round(listOuter, 9)
+            Stroke(listOuter, T.Border, 1, 0.35)
+            Shadow(listOuter)
             local listF = New("Frame", {
-                Size=UDim2.new(1,0,0,0), BackgroundColor3=T.Panel,
-                BorderSizePixel=0, ZIndex=201, AutomaticSize=Enum.AutomaticSize.Y,
+                Size=UDim2.new(1,0,1,0), BackgroundTransparency=1,
+                BorderSizePixel=0, ClipsDescendants=true,
             }, listOuter)
-            Round(listF, 11)
-            Stroke(listF, T.Border, 1, 0.45)
             local ll = Instance.new("UIListLayout")
             ll.FillDirection = Enum.FillDirection.Vertical
             ll.HorizontalAlignment = Enum.HorizontalAlignment.Center
@@ -2019,56 +1418,68 @@ function Qwenzy:CreateWindow(cfg)
             local itemRefs = {}
             local listH = 0
 
+            local function CloseDD()
+                if not open then return end; open=false
+                local w = listOuter.AbsoluteSize.X
+                Tween(listOuter,{Size=UDim2.new(0,w,0,0)},0.16,Enum.EasingStyle.Quart)
+                Tween(arrow,{Rotation=0},0.16)
+                task.delay(0.17, function()
+                    if not open then
+                        listOuter.Visible=false
+                        listOuter.Size=UDim2.new(0,100,0,0)
+                    end
+                end)
+            end
+            table.insert(Window._dropdowns, CloseDD)
+            -- Clean up the floating ScreenGui when window closes
+            local _origDestroy = Window.Destroy
+            Window.Destroy = function(self)
+                pcall(function() _ddSG:Destroy() end)
+                _origDestroy(self)
+            end
+
             local function UpdateDisplay()
-                local keys = {}
+                local keys={}
                 for k,v in pairs(selected) do if v then table.insert(keys,k) end end
                 dispLbl.Text = #keys>0 and table.concat(keys,", ") or "Select..."
                 dispLbl.TextColor3 = #keys>0 and T.TextP or T.TextM
             end
 
-            local function CloseDD()
-                if not open then return end
-                open = false
-                Tween(listOuter, {Size=UDim2.new(0,listOuter.AbsoluteSize.X,0,0)}, 0.18, Enum.EasingStyle.Quart)
-                Tween(arrow, {Rotation=0}, 0.18)
-                task.delay(0.18, function() if not open then listOuter.Visible=false end end)
-            end
-
-            table.insert(Window._dropdowns, CloseDD)
-
-            local function RefreshItems(optList)
+            local function BuildList(optList)
                 for _, ch in ipairs(listF:GetChildren()) do
                     if ch:IsA("TextButton") then ch:Destroy() end
                 end
                 itemRefs = {}
                 for i, opt in ipairs(optList) do
                     local item = New("TextButton", {
-                        Size=UDim2.new(1,0,0,34),
+                        Size=UDim2.new(1,0,0,32),
                         BackgroundColor3=selected[opt] and T.SurfaceH or T.Surface,
-                        BorderSizePixel=0, Text="", AutoButtonColor=false, ZIndex=202, LayoutOrder=i,
+                        BorderSizePixel=0, Text="", AutoButtonColor=false,
+                        ZIndex=202, LayoutOrder=i,
                     }, listF)
-                    Round(item, 7)
+                    Round(item, 6)
                     local ilbl = New("TextLabel", {
-                        Size=UDim2.new(1,-36,1,0), Position=UDim2.new(0,10,0,0),
+                        Size=UDim2.new(1,-32,1,0), Position=UDim2.new(0,10,0,0),
                         BackgroundTransparency=1, Text=opt,
                         TextColor3=selected[opt] and T.TextA or T.TextP,
-                        TextSize=13, Font=selected[opt] and Enum.Font.GothamBold or Enum.Font.Gotham,
+                        TextSize=12,
+                        Font=selected[opt] and Enum.Font.GothamBold or Enum.Font.Gotham,
                         TextXAlignment=Enum.TextXAlignment.Left, ZIndex=203,
                     }, item)
                     local ichk = New("Frame", {
-                        Size=UDim2.new(0,16,0,16), Position=UDim2.new(1,-24,0.5,0),
+                        Size=UDim2.new(0,14,0,14), Position=UDim2.new(1,-22,0.5,0),
                         AnchorPoint=Vector2.new(0,0.5), BackgroundColor3=T.Acc,
                         BackgroundTransparency=selected[opt] and 0 or 1,
                         BorderSizePixel=0, ZIndex=203,
                     }, item)
-                    Round(ichk, 8)
+                    Round(ichk, 7)
                     itemRefs[opt] = {item=item, lbl=ilbl, chk=ichk}
 
                     item.MouseEnter:Connect(function()
-                        if not IsMobile and not selected[opt] then Tween(item,{BackgroundColor3=T.SurfaceH},0.1) end
+                        if not selected[opt] then Tween(item,{BackgroundColor3=Qwenzy._T.SurfaceH},0.08) end
                     end)
                     item.MouseLeave:Connect(function()
-                        if not IsMobile and not selected[opt] then Tween(item,{BackgroundColor3=T.Surface},0.1) end
+                        if not selected[opt] then Tween(item,{BackgroundColor3=Qwenzy._T.Surface},0.08) end
                     end)
                     item.MouseButton1Click:Connect(function()
                         Ripple(item)
@@ -2080,60 +1491,63 @@ function Qwenzy:CreateWindow(cfg)
                         end
                         for o2, refs in pairs(itemRefs) do
                             local s = selected[o2]==true
-                            Tween(refs.item,{BackgroundColor3=s and T.SurfaceH or T.Surface},0.12)
-                            Tween(refs.chk,{BackgroundTransparency=s and 0 or 1},0.12)
-                            refs.lbl.TextColor3 = s and T.TextA or T.TextP
+                            Tween(refs.item,{BackgroundColor3=s and Qwenzy._T.SurfaceH or Qwenzy._T.Surface},0.1)
+                            Tween(refs.chk,{BackgroundTransparency=s and 0 or 1},0.1)
+                            refs.lbl.TextColor3 = s and Qwenzy._T.TextA or Qwenzy._T.TextP
                             refs.lbl.Font = s and Enum.Font.GothamBold or Enum.Font.Gotham
                         end
                         UpdateDisplay()
                         local res={}
                         for k,v in pairs(selected) do if v then table.insert(res,k) end end
                         Qwenzy.Flags[cfg_.Flag or ""] = res
-                        if cfg_.Callback then task.spawn(cfg_.Callback, res) end
+                        if cfg_.Callback then task.spawn(cfg_.Callback,res) end
                         if not multi then CloseDD() end
                     end)
                 end
-                listH = math.min(#optList,6)*34+8
+                listH = math.min(#optList,6)*32+8
             end
 
-            RefreshItems(opts)
+            BuildList(opts)
 
-            local headerHit = New("TextButton", {
-                Size=UDim2.new(1,0,0,56), BackgroundTransparency=1, Text="", ZIndex=c.ZIndex+3,
+            local hdrHit = New("TextButton", {
+                Size=UDim2.new(1,0,0,54), BackgroundTransparency=1, Text="", ZIndex=c.ZIndex+3,
             }, c)
-
-            headerHit.MouseButton1Click:Connect(function()
+            hdrHit.MouseButton1Click:Connect(function()
                 open = not open
                 if open then
-                    local ap = c.AbsolutePosition
-                    local as = c.AbsoluteSize
-                    listOuter.Size = UDim2.new(0,as.X,0,0)
-                    listOuter.Position = UDim2.new(0,ap.X,0,ap.Y+as.Y+4)
-                    listOuter.Visible = true
-                    Tween(listOuter,{Size=UDim2.new(0,as.X,0,listH)},0.22,Enum.EasingStyle.Back,Enum.EasingDirection.Out)
-                    Tween(arrow,{Rotation=180},0.22)
+                    -- Defer one frame so AbsolutePosition/Size are accurate
+                    task.defer(function()
+                        if not open then return end
+                        local ap = c.AbsolutePosition
+                        local as = c.AbsoluteSize
+                        listOuter.Position = UDim2.new(0, ap.X, 0, ap.Y + as.Y + 4)
+                        listOuter.Size = UDim2.new(0, as.X, 0, 0)
+                        listOuter.Visible = true
+                        listF.Size = UDim2.new(1,0,0,listH)
+                        Tween(listOuter, {Size=UDim2.new(0,as.X,0,listH)}, 0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+                        Tween(arrow,{Rotation=180},0.2)
+                    end)
                 else
                     CloseDD()
                 end
             end)
 
-            Track(UserInputService.InputBegan:Connect(function(inp)
-                if (inp.UserInputType==Enum.UserInputType.MouseButton1
-                 or inp.UserInputType==Enum.UserInputType.Touch) and open then
-                    local mx = inp.UserInputType==Enum.UserInputType.Touch and inp.Position.X or Mouse.X
-                    local my = inp.UserInputType==Enum.UserInputType.Touch and inp.Position.Y or Mouse.Y
-                    local op,os = listOuter.AbsolutePosition, listOuter.AbsoluteSize
-                    local cp,cs = c.AbsolutePosition, c.AbsoluteSize
-                    if not (mx>=op.X and mx<=op.X+os.X and my>=op.Y and my<=op.Y+os.Y) and
-                       not (mx>=cp.X and mx<=cp.X+cs.X and my>=cp.Y and my<=cp.Y+cs.Y) then
+            UserInputService.InputBegan:Connect(function(inp)
+                if (inp.UserInputType==Enum.UserInputType.MouseButton1 or
+                    inp.UserInputType==Enum.UserInputType.Touch) and open then
+                    local mx,my=Mouse.X,Mouse.Y
+                    local op,os=listOuter.AbsolutePosition,listOuter.AbsoluteSize
+                    local cp,cs=c.AbsolutePosition,c.AbsoluteSize
+                    if not(mx>=op.X and mx<=op.X+os.X and my>=op.Y and my<=op.Y+os.Y) and
+                       not(mx>=cp.X and mx<=cp.X+cs.X and my>=cp.Y and my<=cp.Y+cs.Y) then
                         CloseDD()
                     end
                 end
-            end))
+            end)
 
             local o = {CurrentOption=initS}
             function o:Refresh(newOpts)
-                opts=newOpts; selected={}; RefreshItems(newOpts); UpdateDisplay()
+                opts=newOpts; selected={}; BuildList(newOpts); UpdateDisplay()
             end
             function o:Set(newSel)
                 for k in pairs(selected) do selected[k]=false end
@@ -2159,229 +1573,93 @@ function Qwenzy:CreateWindow(cfg)
             local curKey = cfg_.CurrentKeybind or "None"
             local listening = false
             Qwenzy.Flags[cfg_.Flag or ""] = curKey
-
-            local c = Card(48)
-
+            local c = Card(46)
             New("TextLabel", {
-                Size=UDim2.new(1,-110,1,0), Position=UDim2.new(0,14,0,0),
+                Size=UDim2.new(1,-108,1,0), Position=UDim2.new(0,12,0,0),
                 BackgroundTransparency=1, Text=cfg_.Name or "Keybind",
-                TextColor3=T.TextP, TextSize=13, Font=Enum.Font.Gotham,
+                TextColor3=T.TextP, TextSize=12, Font=Enum.Font.Gotham,
                 TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3,
             }, c)
-
-            -- Hint label: shows [RClick: clear] while listening
-            local hintLbl = New("TextLabel", {
-                Size=UDim2.new(1,-14,0,12), Position=UDim2.new(0,14,1,-13),
-                BackgroundTransparency=1, Text="",
-                TextColor3=T.TextM, TextSize=10, Font=Enum.Font.Gotham,
-                TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3,
-            }, c)
-
             local badge = New("TextButton", {
-                Size=UDim2.new(0,90,0,28), Position=UDim2.new(1,-104,0.5,0),
+                Size=UDim2.new(0,80,0,26), Position=UDim2.new(1,-92,0.5,0),
                 AnchorPoint=Vector2.new(0,0.5), BackgroundColor3=T.BGS,
-                BorderSizePixel=0, Text=curKey == "None" and "None" or curKey,
-                TextColor3=curKey == "None" and T.TextM or T.TextA,
-                TextSize=12, Font=Enum.Font.GothamBold, AutoButtonColor=false, ZIndex=4,
+                BorderSizePixel=0, Text=curKey, TextColor3=T.TextA,
+                TextSize=11, Font=Enum.Font.GothamBold, AutoButtonColor=false, ZIndex=4,
             }, c)
-            Round(badge, 8)
-            local badgeStroke = Stroke(badge, T.Border, 1, 0.4)
-
-            -- Pulse ring — visible only while listening
-            local pulse = New("Frame", {
-                Size=UDim2.new(1,0,1,0), Position=UDim2.new(0,0,0,0),
-                BackgroundTransparency=1, BorderSizePixel=0, ZIndex=3,
-            }, badge)
-            Round(pulse, 8)
-            local pulseStroke = Instance.new("UIStroke")
-            pulseStroke.Color = T.Warn
-            pulseStroke.Thickness = 0
-            pulseStroke.Transparency = 0
-            pulseStroke.Parent = pulse
-
-            local pulseLoop = nil
-            local function StartPulse()
-                pulseStroke.Thickness = 2
-                pulseLoop = task.spawn(function()
-                    while listening do
-                        Tween(pulseStroke, {Transparency=0.1, Thickness=2.5}, 0.55, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
-                        task.wait(0.55)
-                        if not listening then break end
-                        Tween(pulseStroke, {Transparency=0.7, Thickness=1.5}, 0.55, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
-                        task.wait(0.55)
-                    end
-                    pulseStroke.Thickness = 0
-                end)
-            end
-            local function StopPulse()
-                if pulseLoop then task.cancel(pulseLoop) pulseLoop = nil end
-                pulseStroke.Thickness = 0
-            end
-
-            local function CommitKey(newKey)
-                listening = false
-                StopPulse()
-                curKey = newKey
-                badge.Text = newKey == "None" and "None" or newKey
-                badge.TextColor3 = newKey == "None" and T.TextM or T.TextA
-                Tween(badge, {BackgroundColor3=T.BGS}, 0.15)
-                Tween(badgeStroke, {Color=T.Border, Transparency=0.4}, 0.15)
-                hintLbl.Text = ""
-                Qwenzy.Flags[cfg_.Flag or ""] = newKey
-                Ripple(badge)
-            end
-
-            local function StartListening()
-                if listening then
-                    -- second click cancels
-                    listening = false
-                    StopPulse()
-                    badge.Text = curKey == "None" and "None" or curKey
-                    badge.TextColor3 = curKey == "None" and T.TextM or T.TextA
-                    Tween(badge, {BackgroundColor3=T.BGS}, 0.15)
-                    Tween(badgeStroke, {Color=T.Border, Transparency=0.4}, 0.15)
-                    hintLbl.Text = ""
+            Round(badge, 7)
+            Stroke(badge, T.Border, 1, 0.35)
+            badge.MouseButton1Click:Connect(function()
+                if listening then return end
+                listening=true; badge.Text="..."; badge.TextColor3=T.Warn
+                Tween(badge,{BackgroundColor3=T.SurfaceH},0.12)
+            end)
+            UserInputService.InputBegan:Connect(function(inp, gp)
+                if listening and inp.UserInputType==Enum.UserInputType.Keyboard then
+                    listening=false; curKey=inp.KeyCode.Name
+                    badge.Text=curKey; badge.TextColor3=T.TextA
+                    Tween(badge,{BackgroundColor3=T.BGS},0.12)
+                    Ripple(badge)
+                    Qwenzy.Flags[cfg_.Flag or ""]=curKey
                     return
                 end
-                listening = true
-                badge.Text = "Press key…"
-                badge.TextColor3 = T.Warn
-                Tween(badge, {BackgroundColor3=T.SurfaceH}, 0.15)
-                Tween(badgeStroke, {Color=T.Warn, Transparency=0.1}, 0.15)
-                hintLbl.Text = "Esc: cancel  •  RClick: clear"
-                StartPulse()
-            end
-
-            badge.MouseButton1Click:Connect(StartListening)
-
-            -- Right-click clears the keybind to "None"
-            badge.MouseButton2Click:Connect(function()
-                if listening then
-                    CommitKey("None")
-                else
-                    CommitKey("None")
-                    Qwenzy:Notify({
-                        Title   = "Keybind Cleared",
-                        Content = (cfg_.Name or "Keybind") .. " has been unbound.",
-                        Image   = "x-circle",
-                        Duration = 2,
-                    })
-                end
-            end)
-
-            Track(UserInputService.InputBegan:Connect(function(inp, gp)
-                if listening then
-                    if inp.UserInputType == Enum.UserInputType.Keyboard then
-                        if inp.KeyCode == Enum.KeyCode.Escape then
-                            -- Cancel — revert to previous key
-                            listening = false
-                            StopPulse()
-                            badge.Text = curKey == "None" and "None" or curKey
-                            badge.TextColor3 = curKey == "None" and T.TextM or T.TextA
-                            Tween(badge, {BackgroundColor3=T.BGS}, 0.15)
-                            Tween(badgeStroke, {Color=T.Border, Transparency=0.4}, 0.15)
-                            hintLbl.Text = ""
-                        else
-                            CommitKey(inp.KeyCode.Name)
-                            if cfg_.Callback then
-                                -- notify that keybind changed, don't fire the action
-                            end
-                        end
-                    elseif inp.UserInputType == Enum.UserInputType.MouseButton2 then
-                        -- handled by MouseButton2Click above
-                    end
-                    return -- swallow all input while listening
-                end
-                -- Normal firing: only fire if NOT game-processed and key matches
-                if not gp then
-                    local kc = Enum.KeyCode[curKey]
-                    if kc and inp.KeyCode == kc then
+                if not gp and not listening then
+                    local kc=Enum.KeyCode[curKey]
+                    if kc and inp.KeyCode==kc then
                         if cfg_.Callback then task.spawn(cfg_.Callback, false) end
                     end
                 end
-            end))
-
-            HoverHit(c)
-
+            end)
+            HoverCard(c)
             local o = {CurrentKeybind=curKey}
-            function o:Set(k)
-                curKey = k
-                badge.Text = k == "None" and "None" or k
-                badge.TextColor3 = k == "None" and T.TextM or T.TextA
-                o.CurrentKeybind = k
-                Qwenzy.Flags[cfg_.Flag or ""] = k
-            end
+            function o:Set(k) curKey=k; badge.Text=k; o.CurrentKeybind=k; Qwenzy.Flags[cfg_.Flag or ""]=k end
             return o
         end
 
         return Tab
     end -- CreateTab
 
-    function Window:SetVisibility(v) self._main.Visible = v end
+    function Window:SetVisibility(v) self._main.Visible=v end
     function Window:IsVisible() return self._main.Visible end
     function Window:Destroy()
-        SetBlur(false)
         for _, conn in ipairs(self._conns) do pcall(function() conn:Disconnect() end) end
-        self._conns = {}
-        local sz = self._main.Size
-        Tween(self._main, {Size=UDim2.new(sz.X.Scale, sz.X.Offset, 0, 0)}, 0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
-        task.delay(0.25, function() pcall(function() self._sg:Destroy() end) end)
+        self._conns={}
+        Tween(self._main,{Size=UDim2.new(0,WIN_W,0,0)},0.2,Enum.EasingStyle.Quart,Enum.EasingDirection.In)
+        task.delay(0.2, function() pcall(function() self._sg:Destroy() end) end)
     end
-
-    -- Animate in
-    Tween(main, {Size=UDim2.new(0,WIN_W,0,WIN_H)}, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 
     return Window
 end -- CreateWindow
 
-function Qwenzy:SetVisibility(v)
-    for _,w in ipairs(self._windows) do pcall(function() w:SetVisibility(v) end) end
-end
-function Qwenzy:Destroy()
-    for _,w in ipairs(self._windows) do pcall(function() w:Destroy() end) end
-    self._windows={}
-end
+function Qwenzy:SetVisibility(v) for _,w in ipairs(self._windows) do pcall(function() w:SetVisibility(v) end) end end
+function Qwenzy:Destroy() for _,w in ipairs(self._windows) do pcall(function() w:Destroy() end) end; self._windows={} end
 
 -- ===================================================
---  PERSISTENT CONFIG
+--  CONFIG API
 -- ===================================================
-local _Cfg = ConfigManager.new("QwenzyUI", "QwenzyConfig")
+local _Cfg = ConfigManager.new("QwenzyUI", "Config")
 
-function Qwenzy:SaveConfig(slotName)
-    local slots = _Cfg:Get("ConfigSlots", {})
+function Qwenzy:SaveConfig(slot)
+    local slots = _Cfg:Get("slots",{})
     local data = {}
     for k,v in pairs(self.Flags) do
-        local t = type(v)
-        if t=="boolean" or t=="number" or t=="string" then data[k]=v end
+        if type(v)=="boolean" or type(v)=="number" or type(v)=="string" then data[k]=v end
     end
-    slots[slotName] = data
-    _Cfg:Set("ConfigSlots", slots)
+    slots[slot]=data; _Cfg:Set("slots",slots)
 end
-
-function Qwenzy:LoadConfig(slotName)
-    local slots = _Cfg:Get("ConfigSlots", {})
-    local data = slots[slotName]
+function Qwenzy:LoadConfig(slot)
+    local data = (_Cfg:Get("slots",{}))[slot]
     if not data then return false end
     for k,v in pairs(data) do self.Flags[k]=v end
     return true
 end
-
-function Qwenzy:DeleteConfig(slotName)
-    local slots = _Cfg:Get("ConfigSlots", {})
-    slots[slotName]=nil; _Cfg:Set("ConfigSlots",slots)
+function Qwenzy:DeleteConfig(slot)
+    local s=_Cfg:Get("slots",{}); s[slot]=nil; _Cfg:Set("slots",s)
 end
-
 function Qwenzy:GetConfigSlots()
-    local slots = _Cfg:Get("ConfigSlots", {})
-    local names = {}
-    for name in pairs(slots) do table.insert(names,name) end
-    table.sort(names)
-    return names
+    local s=_Cfg:Get("slots",{}); local n={}
+    for k in pairs(s) do table.insert(n,k) end
+    table.sort(n); return n
 end
-
 function Qwenzy:GetConfig() return _Cfg end
 
--- ===================================================
---  RETURN MODULE
--- ===================================================
 return Qwenzy
