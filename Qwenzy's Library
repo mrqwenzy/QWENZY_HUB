@@ -423,10 +423,10 @@ function Qwenzy:CreateWindow(cfg)
     local isMobile = vp.X < 600
 
     -- Layout constants
-    local WIN_W   = isMobile and math.min(vp.X - 12, 400) or 640
-    local WIN_H   = isMobile and math.min(vp.Y - 56, 500) or 420
-    local TOP_H   = 44
-    local SIDE_W  = isMobile and 50 or 162
+    local WIN_W   = isMobile and math.min(vp.X - 10, 340) or 640
+    local WIN_H   = isMobile and math.min(vp.Y - 48, 440) or 420
+    local TOP_H   = isMobile and 38 or 44
+    local SIDE_W  = isMobile and 44 or 162
 
     local sg = New("ScreenGui", {
         Name="QwenzyUI_Window", ResetOnSpawn=false,
@@ -564,8 +564,8 @@ function Qwenzy:CreateWindow(cfg)
     -- ---- MOBILE TOGGLE BUTTON ----
     -- Floating pill at bottom-right, always on screen
     local fab = New("TextButton", {
-        Size=UDim2.new(0,44,0,44),
-        Position=UDim2.new(1,-56, 1,-56),
+        Size=UDim2.new(0,40,0,40),
+        Position=UDim2.new(1,-50, 1,-52),
         BackgroundColor3=T.Acc,
         BorderSizePixel=0, Text="", AutoButtonColor=false, ZIndex=400,
     }, sg)
@@ -660,8 +660,8 @@ function Qwenzy:CreateWindow(cfg)
     tl.Parent = tabScroll
     local tp = Instance.new("UIPadding")
     tp.PaddingTop = UDim.new(0,8); tp.PaddingBottom = UDim.new(0,8)
-    tp.PaddingLeft = UDim.new(0, isMobile and 3 or 5)
-    tp.PaddingRight = UDim.new(0, isMobile and 3 or 5)
+    tp.PaddingLeft = UDim.new(0, isMobile and 2 or 5)
+    tp.PaddingRight = UDim.new(0, isMobile and 2 or 5)
     tp.Parent = tabScroll
 
     if not isMobile then
@@ -697,7 +697,7 @@ function Qwenzy:CreateWindow(cfg)
         local isFirst = order == 1
         local mob    = isMobile
 
-        local TAB_H = mob and 46 or 38
+        local TAB_H = mob and 38 or 38
 
         local btn = New("TextButton", {
             Size=UDim2.new(1,0,0,TAB_H),
@@ -721,7 +721,7 @@ function Qwenzy:CreateWindow(cfg)
         local icoOff = mob and 0 or 10
         local tabIco
         if icon and icon ~= "" then
-            local icoSz = mob and 20 or 16
+            local icoSz = mob and 16 or 16
             tabIco = New("ImageLabel", {
                 Size=UDim2.new(0,icoSz,0,icoSz),
                 Position=mob and UDim2.new(0.5,0,0.5, mob and -5 or 0)
@@ -765,12 +765,14 @@ function Qwenzy:CreateWindow(cfg)
         local pl = Instance.new("UIListLayout")
         pl.FillDirection = Enum.FillDirection.Vertical
         pl.HorizontalAlignment = Enum.HorizontalAlignment.Center
-        pl.Padding = UDim.new(0,4)
+        pl.Padding = UDim.new(0, isMobile and 3 or 4)
         pl.SortOrder = Enum.SortOrder.LayoutOrder
         pl.Parent = page
         local pp = Instance.new("UIPadding")
-        pp.PaddingTop = UDim.new(0,10); pp.PaddingBottom = UDim.new(0,16)
-        pp.PaddingLeft = UDim.new(0,10); pp.PaddingRight = UDim.new(0,10)
+        pp.PaddingTop = UDim.new(0, isMobile and 7 or 10)
+        pp.PaddingBottom = UDim.new(0, isMobile and 10 or 16)
+        pp.PaddingLeft = UDim.new(0, isMobile and 7 or 10)
+        pp.PaddingRight = UDim.new(0, isMobile and 7 or 10)
         pp.Parent = page
 
         local Tab = {_page=page, _btn=btn, _ind=ind, _lbl=lbl, _ico=tabIco, _n=0}
@@ -818,8 +820,9 @@ function Qwenzy:CreateWindow(cfg)
         local function N() Tab._n += 1; return Tab._n end
 
         local function Card(h, auto)
+            local mh = isMobile and math.floor((h or 48)*0.82) or (h or 48)
             local c = New("Frame", {
-                Size=UDim2.new(1,0,0,h or 48),
+                Size=UDim2.new(1,0,0,mh),
                 BackgroundColor3=T.Surface, BorderSizePixel=0,
                 ZIndex=2, LayoutOrder=N(),
                 AutomaticSize=auto and Enum.AutomaticSize.Y or Enum.AutomaticSize.None,
@@ -848,7 +851,7 @@ function Qwenzy:CreateWindow(cfg)
             return New("TextLabel", {
                 Size=UDim2.new(1,-64,1,0), Position=UDim2.new(0,12,0,0),
                 BackgroundTransparency=1, Text=txt,
-                TextColor3=T.TextP, TextSize=12, Font=Enum.Font.Gotham,
+                TextColor3=T.TextP, TextSize=isMobile and 11 or 12, Font=Enum.Font.Gotham,
                 TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3,
             }, c)
         end
