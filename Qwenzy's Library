@@ -178,12 +178,64 @@ local function Shadow(parent)
     local s = New("ImageLabel", {
         Name="Shadow", BackgroundTransparency=1,
         Image="rbxassetid://6014261993",
-        ImageColor3=Color3.fromRGB(0,0,0), ImageTransparency=0.55,
+        ImageColor3=Color3.fromRGB(0,0,0), ImageTransparency=0.4,
         ScaleType=Enum.ScaleType.Slice, SliceCenter=Rect.new(49,49,450,450),
-        Size=UDim2.new(1,46,1,46), Position=UDim2.new(0,-23,0,-23),
+        Size=UDim2.new(1,70,1,70), Position=UDim2.new(0,-35,0,-35),
         ZIndex=(parent.ZIndex or 1)-1,
     }, parent)
     return s
+end
+
+-- Adds frosted glass layering to any frame:
+-- bottom tint + top diagonal sheen + edge highlight stroke
+local function Glassify(frame, strokeColor, strokeTrans, sheenTrans)
+    strokeTrans = strokeTrans or 0.5
+    sheenTrans  = sheenTrans  or 0.94
+    -- Top-left diagonal sheen
+    local sheen = New("Frame", {
+        Size=UDim2.new(1,0,0.5,0), Position=UDim2.new(0,0,0,0),
+        BackgroundColor3=Color3.fromRGB(255,255,255),
+        BackgroundTransparency=sheenTrans,
+        BorderSizePixel=0, ZIndex=(frame.ZIndex or 2)+1,
+    }, frame)
+    Round(sheen, 12)
+    -- Thin bottom sheen (frosted edge)
+    local bot = New("Frame", {
+        Size=UDim2.new(1,0,0.25,0), Position=UDim2.new(0,0,0.75,0),
+        BackgroundColor3=Color3.fromRGB(255,255,255),
+        BackgroundTransparency=0.97,
+        BorderSizePixel=0, ZIndex=(frame.ZIndex or 2)+1,
+    }, frame)
+    Round(bot, 12)
+    -- Glass border stroke
+    local gs = Instance.new("UIStroke")
+    gs.Color = strokeColor or T.Acc
+    gs.Thickness = 1
+    gs.Transparency = strokeTrans
+    gs.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    gs.Parent = frame
+    return gs
+end
+
+-- Lighting blur — applied when UI opens, removed on close
+local Lighting = game:GetService("Lighting")
+local _blurEffect = nil
+local function SetBlur(enabled)
+    if enabled then
+        if not _blurEffect or not _blurEffect.Parent then
+            _blurEffect = Instance.new("BlurEffect")
+            _blurEffect.Size = 16
+            _blurEffect.Parent = Lighting
+        end
+        Tween(_blurEffect, {Size=16}, 0.35, Enum.EasingStyle.Quart)
+    else
+        if _blurEffect and _blurEffect.Parent then
+            Tween(_blurEffect, {Size=0}, 0.3, Enum.EasingStyle.Quart)
+            task.delay(0.3, function()
+                if _blurEffect then _blurEffect:Destroy(); _blurEffect=nil end
+            end)
+        end
+    end
 end
 
 -- ===================================================
@@ -407,24 +459,24 @@ function Qwenzy:Notify(cfg)
 
     local card = New("Frame", {
         Name="N"..notifN, Size=UDim2.new(1,0,0,76),
-        BackgroundColor3=T.Panel, BackgroundTransparency=0.1,
-        ClipsDescendants=true, LayoutOrder=notifN,
+        BackgroundColor3=T.Panel, BackgroundTransparency=0.38,
+        ClipsDescendants=false, LayoutOrder=notifN,
         BorderSizePixel=0,
     }, NotifCont)
     Round(card, 14)
-    -- Glass glow border
-    local ns = Instance.new("UIStroke")
-    ns.Color = T.Acc; ns.Thickness = 1; ns.Transparency = 0.5
-    ns.Parent = card
-    -- Top sheen
-    New("Frame", {
-        Size=UDim2.new(1,0,0.5,0), BackgroundColor3=Color3.fromRGB(255,255,255),
-        BackgroundTransparency=0.93, BorderSizePixel=0, ZIndex=1,
-    }, card)
+    Glassify(card, T.Acc, 0.4, 0.93)
+    Shadow(card)
 
     local topBar = New("Frame", {Size=UDim2.new(1,0,0,2), BackgroundColor3=T.Acc, BorderSizePixel=0, ZIndex=2}, card)
     Grad(topBar, T.AccD, T.AccB, 90)
-    Shadow(card)
+    -- Shimmer on top accent bar
+    local nShimmer = New("Frame", {
+        Size=UDim2.new(0,60,1,0), Position=UDim2.new(-0.1,0,0,0),
+        BackgroundColor3=Color3.fromRGB(255,255,255),
+        BackgroundTransparency=0.5, BorderSizePixel=0, ZIndex=3,
+    }, topBar)
+    Tween(nShimmer, {Position=UDim2.new(1.1,0,0,0)}, 1.5, Enum.EasingStyle.Sine)
+
 
     local xOff = 14
     if cfg.Image and cfg.Image ~= 0 then
@@ -493,8 +545,14 @@ local function ShowLoading(title, subtitle, T)
         DisplayOrder=7000}, ROOT)
 
     -- ── Background particles ──────────────────────────
+    -- Blur behind loading screen
+    local loadBlur = Instance.new("BlurEffect")
+    loadBlur.Size = 20
+    loadBlur.Parent = game:GetService("Lighting")
+
     local bg = New("Frame", {
         Size=UDim2.new(1,0,1,0), BackgroundColor3=T.BG,
+        BackgroundTransparency=0.18,
         BorderSizePixel=0, ZIndex=100,
     }, sg)
 
@@ -531,23 +589,18 @@ local function ShowLoading(title, subtitle, T)
         Position=UDim2.new(0.5,0,0.5,0),
         AnchorPoint=Vector2.new(0.5,0.5),
         BackgroundColor3=T.Panel,
-        BackgroundTransparency=0.12,
+        BackgroundTransparency=0.42,
         BorderSizePixel=0, ZIndex=102,
     }, sg)
     Round(card, 20)
-    -- Glass stroke
-    local glassStroke = Instance.new("UIStroke")
-    glassStroke.Color = T.Acc
-    glassStroke.Thickness = 1.2
-    glassStroke.Transparency = 0.5
-    glassStroke.Parent = card
-    -- Inner glass sheen
-    local sheen = New("Frame", {
-        Size=UDim2.new(1,0,0.5,0), Position=UDim2.new(0,0,0,0),
-        BackgroundColor3=Color3.fromRGB(255,255,255),
-        BackgroundTransparency=0.96, BorderSizePixel=0, ZIndex=103,
+    Glassify(card, T.Acc, 0.38, 0.94)
+    -- Noise texture
+    New("ImageLabel", {
+        Size=UDim2.new(1,0,1,0), BackgroundTransparency=1,
+        Image="rbxassetid://9968344605",
+        ImageTransparency=0.96,
+        ScaleType=Enum.ScaleType.Tile, TileSize=UDim2.new(0,128,0,128), ZIndex=103,
     }, card)
-    Round(sheen, 20)
     -- Top accent bar
     local topAcc = New("Frame", {
         Size=UDim2.new(1,0,0,2), BackgroundColor3=T.Acc, BorderSizePixel=0, ZIndex=104,
@@ -832,6 +885,8 @@ local function ShowLoading(title, subtitle, T)
     Tween(bg,   {BackgroundTransparency=1}, 0.4)
     Tween(card, {Position=UDim2.new(0.5,0,0.35,0), BackgroundTransparency=1}, 0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
     task.wait(0.4)
+    -- Remove loading blur (window will add its own)
+    pcall(function() loadBlur:Destroy() end)
     sg:Destroy()
 end
 
@@ -861,62 +916,59 @@ function Qwenzy:CreateWindow(cfg)
     local WIN_H = math.min(440, vp.Y - 16)
     local SIDE_W = IsMobile and math.min(120, math.floor(WIN_W * 0.32)) or 174
 
-    -- Main frame — glass dark background
+    -- Enable background blur when window opens
+    SetBlur(true)
+
+    -- Main frame — deep glass
     local main = New("Frame", {
         Name="Main",
         Size=UDim2.new(0, WIN_W, 0, 0),
         Position=UDim2.new(0, (vp.X - WIN_W)/2, 0, (vp.Y - WIN_H)/2),
         AnchorPoint=Vector2.new(0,0),
         BackgroundColor3=T.BG,
-        BackgroundTransparency=0.08,
+        BackgroundTransparency=0.35,   -- more transparent = more glass
         BorderSizePixel=0,
         ClipsDescendants=true,
     }, sg)
     Round(main, 18)
-    -- Outer glass border
-    local mainStroke = Instance.new("UIStroke")
-    mainStroke.Color = T.Acc
-    mainStroke.Thickness = 1.2
-    mainStroke.Transparency = 0.55
-    mainStroke.Parent = main
     Shadow(main)
-    -- Subtle inner gradient
+    -- Very subtle tinted gradient overlay
     Grad(main, T.BGS, T.BG, 145)
-    -- Top sheen (glass highlight)
-    local mainSheen = New("Frame", {
-        Size=UDim2.new(1,0,0.45,0), Position=UDim2.new(0,0,0,0),
-        BackgroundColor3=Color3.fromRGB(255,255,255),
-        BackgroundTransparency=0.97, BorderSizePixel=0, ZIndex=1,
+    -- Glassify adds sheen layers + border stroke
+    local mainGS = Glassify(main, T.Acc, 0.45, 0.96)
+    -- Noise texture for frosted glass feel
+    New("ImageLabel", {
+        Name="Noise", Size=UDim2.new(1,0,1,0),
+        BackgroundTransparency=1,
+        Image="rbxassetid://9968344605",   -- tileable noise
+        ImageTransparency=0.96,
+        ScaleType=Enum.ScaleType.Tile, TileSize=UDim2.new(0,128,0,128),
+        ZIndex=0,
     }, main)
-    Round(mainSheen, 18)
 
-    -- Topbar — glass panel
+    -- Topbar — frosted glass panel
     local topbar = New("Frame", {
         Size=UDim2.new(1,0,0,52), BackgroundColor3=T.Top,
-        BackgroundTransparency=0.18, BorderSizePixel=0, ZIndex=3,
+        BackgroundTransparency=0.45, BorderSizePixel=0, ZIndex=3,
     }, main)
-    -- Topbar glass sheen
-    New("Frame", {
-        Size=UDim2.new(1,0,1,0), BackgroundColor3=Color3.fromRGB(255,255,255),
-        BackgroundTransparency=0.93, BorderSizePixel=0, ZIndex=3,
-    }, topbar)
-    -- Bottom separator
+    Glassify(topbar, T.Acc, 0.6, 0.92)
+    -- Bottom separator glow
     New("Frame", {Size=UDim2.new(1,0,0,1), Position=UDim2.new(0,0,1,-1),
-        BackgroundColor3=T.Acc, BackgroundTransparency=0.7, BorderSizePixel=0, ZIndex=4}, topbar)
-    -- Accent bar with glow effect
+        BackgroundColor3=T.Acc, BackgroundTransparency=0.55, BorderSizePixel=0, ZIndex=4}, topbar)
+    -- Accent bar
     local accLine = New("Frame", {Size=UDim2.new(1,0,0,2), BackgroundColor3=T.Acc, BorderSizePixel=0, ZIndex=4}, topbar)
     Grad(accLine, T.AccD, T.AccB, 90)
-    -- Animated shimmer on accent bar
+    -- Shimmer sweep
     local accShimmer = New("Frame", {
-        Size=UDim2.new(0,80,1,0), Position=UDim2.new(-0.15,0,0,0),
+        Size=UDim2.new(0,120,1,0), Position=UDim2.new(-0.2,0,0,0),
         BackgroundColor3=Color3.fromRGB(255,255,255),
-        BackgroundTransparency=0.6, BorderSizePixel=0, ZIndex=5,
+        BackgroundTransparency=0.55, BorderSizePixel=0, ZIndex=5,
     }, accLine)
     task.spawn(function()
         while accLine and accLine.Parent do
-            accShimmer.Position = UDim2.new(-0.15,0,0,0)
-            Tween(accShimmer, {Position=UDim2.new(1.15,0,0,0)}, 2.2, Enum.EasingStyle.Sine)
-            task.wait(3.5)
+            accShimmer.Position = UDim2.new(-0.2,0,0,0)
+            Tween(accShimmer, {Position=UDim2.new(1.2,0,0,0)}, 2.5, Enum.EasingStyle.Sine)
+            task.wait(4)
         end
     end)
 
@@ -1003,6 +1055,7 @@ function Qwenzy:CreateWindow(cfg)
     -- Window controls
     local minimized, prevSz = false, nil
     closeHit.MouseButton1Click:Connect(function()
+        SetBlur(false)
         Tween(main, {Size=UDim2.new(0,WIN_W,0,0)}, 0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
         task.delay(0.25, function() sg:Destroy() end)
     end)
@@ -1092,20 +1145,16 @@ function Qwenzy:CreateWindow(cfg)
         end)
     end
 
-    -- Sidebar — glass panel
+    -- Sidebar — frosted glass panel
     local sidebar = New("Frame", {
         Name="Sidebar", Size=UDim2.new(0,SIDE_W,1,-52), Position=UDim2.new(0,0,0,52),
-        BackgroundColor3=T.Tab, BackgroundTransparency=0.2,
+        BackgroundColor3=T.Tab, BackgroundTransparency=0.5,
         BorderSizePixel=0, ZIndex=2, ClipsDescendants=true,
     }, main)
-    -- Glass sheen on sidebar
-    New("Frame", {
-        Size=UDim2.new(1,0,1,0), BackgroundColor3=Color3.fromRGB(255,255,255),
-        BackgroundTransparency=0.96, BorderSizePixel=0, ZIndex=2,
-    }, sidebar)
-    -- Right edge glow
+    Glassify(sidebar, T.Acc, 0.7, 0.95)
+    -- Right edge accent glow line
     New("Frame", {Size=UDim2.new(0,1,1,0), Position=UDim2.new(1,-1,0,0),
-        BackgroundColor3=T.Acc, BackgroundTransparency=0.7, BorderSizePixel=0, ZIndex=3}, sidebar)
+        BackgroundColor3=T.Acc, BackgroundTransparency=0.6, BorderSizePixel=0, ZIndex=3}, sidebar)
 
     local tabCont = New("ScrollingFrame", {
         Size=UDim2.new(1,0,1,-24), BackgroundTransparency=1,
@@ -1159,16 +1208,15 @@ function Qwenzy:CreateWindow(cfg)
         local tabBtn = New("TextButton", {
             Size=UDim2.new(1,0,0, IsMobile and 48 or 40),
             BackgroundColor3=isFirst and T.SurfaceH or T.Tab,
-            BackgroundTransparency=isFirst and 0.25 or 1,
+            BackgroundTransparency=isFirst and 0.45 or 1,
             BorderSizePixel=0, Text="", AutoButtonColor=false,
             ZIndex=3, LayoutOrder=order,
         }, tabCont)
         Round(tabBtn, 10)
-        -- Glass stroke on active tab
         local tabStroke = Instance.new("UIStroke")
         tabStroke.Color = T.Acc
         tabStroke.Thickness = 1
-        tabStroke.Transparency = isFirst and 0.55 or 1
+        tabStroke.Transparency = isFirst and 0.45 or 1
         tabStroke.Parent = tabBtn
 
         local ind = New("Frame", {
@@ -1253,8 +1301,8 @@ function Qwenzy:CreateWindow(cfg)
             page.Visible = true
             page.Position = UDim2.new(0.05,0,0,0)
             Tween(page, {Position=UDim2.new(0,0,0,0)}, 0.22, Enum.EasingStyle.Quart)
-            Tween(tabBtn, {BackgroundTransparency=0.25, BackgroundColor3=T.SurfaceH}, 0.2)
-            Tween(tabStroke, {Transparency=0.55}, 0.2)
+            Tween(tabBtn, {BackgroundTransparency=0.45, BackgroundColor3=T.SurfaceH}, 0.2)
+            Tween(tabStroke, {Transparency=0.45}, 0.2)
             Tween(ind, {BackgroundTransparency=0}, 0.2)
             Tween(indGlow, {Transparency=0.5}, 0.2)
             if lbl then Tween(lbl, {TextColor3=T.TextA}, 0.2); lbl.Font = Enum.Font.GothamBold end
@@ -1289,26 +1337,20 @@ function Qwenzy:CreateWindow(cfg)
             local c = New("Frame", {
                 Size=UDim2.new(1,0,0,h or 50),
                 BackgroundColor3=T.Surface,
-                BackgroundTransparency=0.25,
+                BackgroundTransparency=0.52,   -- deep glass
                 BorderSizePixel=0,
                 ZIndex=2, LayoutOrder=NextN(),
                 AutomaticSize=auto and Enum.AutomaticSize.Y or Enum.AutomaticSize.None,
             }, page)
             Round(c, 12)
-            -- Glass border
-            local cs = Instance.new("UIStroke")
-            cs.Color = T.Border
-            cs.Thickness = 1
-            cs.Transparency = 0.45
-            cs.Parent = c
-            -- Top sheen line
+            -- Glass sheen + stroke via Glassify
+            local cs = Glassify(c, T.Border, 0.55, 0.93)
+            -- Horizontal top sheen line (bright edge highlight)
             New("Frame", {
-                Size=UDim2.new(1,-24,0,1), Position=UDim2.new(0,12,0,1),
+                Size=UDim2.new(0.6,0,0,1), Position=UDim2.new(0.2,0,0,1),
                 BackgroundColor3=Color3.fromRGB(255,255,255),
-                BackgroundTransparency=0.82, BorderSizePixel=0, ZIndex=3,
+                BackgroundTransparency=0.72, BorderSizePixel=0, ZIndex=3,
             }, c)
-            -- Store stroke for hover glow
-            c:SetAttribute("_stroke_id", cs ~= nil)
             rawset(c, "_qs", cs)
             return c
         end
@@ -1318,29 +1360,24 @@ function Qwenzy:CreateWindow(cfg)
                 Size=UDim2.new(1,0,1,0), BackgroundTransparency=1, Text="", ZIndex=c.ZIndex+5,
             }, c)
             local cs = rawget(c, "_qs")
-            if not IsMobile then
-                hit.MouseEnter:Connect(function()
-                    Tween(c, {BackgroundColor3=T.SurfaceH, BackgroundTransparency=0.12}, 0.15)
-                    if cs then Tween(cs, {Color=T.Acc, Transparency=0.2}, 0.15) end
-                end)
-                hit.MouseLeave:Connect(function()
-                    Tween(c, {BackgroundColor3=T.Surface, BackgroundTransparency=0.25}, 0.2)
-                    if cs then Tween(cs, {Color=T.Border, Transparency=0.45}, 0.2) end
-                end)
+            local function onEnter()
+                Tween(c, {BackgroundColor3=T.SurfaceH, BackgroundTransparency=0.35}, 0.15)
+                if cs then Tween(cs, {Color=T.Acc, Transparency=0.15}, 0.15) end
             end
-            if IsMobile then
+            local function onLeave()
+                Tween(c, {BackgroundColor3=T.Surface, BackgroundTransparency=0.52}, 0.22)
+                if cs then Tween(cs, {Color=T.Border, Transparency=0.55}, 0.22) end
+            end
+            if not IsMobile then
+                hit.MouseEnter:Connect(onEnter)
+                hit.MouseLeave:Connect(onLeave)
+            else
                 hit.InputBegan:Connect(function(inp)
-                    if inp.UserInputType == Enum.UserInputType.Touch then
-                        Tween(c, {BackgroundColor3=T.SurfaceH, BackgroundTransparency=0.12}, 0.08)
-                        if cs then Tween(cs, {Color=T.Acc, Transparency=0.2}, 0.08) end
-                    end
+                    if inp.UserInputType == Enum.UserInputType.Touch then onEnter() end
                 end)
                 hit.InputEnded:Connect(function(inp)
                     if inp.UserInputType == Enum.UserInputType.Touch then
-                        task.delay(0.15, function()
-                            Tween(c, {BackgroundColor3=T.Surface, BackgroundTransparency=0.25}, 0.15)
-                            if cs then Tween(cs, {Color=T.Border, Transparency=0.45}, 0.15) end
-                        end)
+                        task.delay(0.18, onLeave)
                     end
                 end)
             end
@@ -2283,6 +2320,7 @@ function Qwenzy:CreateWindow(cfg)
     function Window:SetVisibility(v) self._main.Visible = v end
     function Window:IsVisible() return self._main.Visible end
     function Window:Destroy()
+        SetBlur(false)
         for _, conn in ipairs(self._conns) do pcall(function() conn:Disconnect() end) end
         self._conns = {}
         local sz = self._main.Size
